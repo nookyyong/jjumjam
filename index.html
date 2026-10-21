@@ -32,17 +32,16 @@
       </div>
 
       <!-- 소리 켜기/끄기 -->
-      <!-- 일시정지 버튼 (게임 중에만) -->
-      <button type="button" class="pause_btn sound_btn px_box hidden" id="pauseBtn" aria-label="일시정지">
-        <span class="sound_icon">II</span><span class="sound_label">정지</span>
-      </button>
-
       <div class="sound_toggles at_top" id="soundToggles">
         <button type="button" class="sound_btn px_box" id="sfxBtn" aria-label="효과음 켜기/끄기">
           <span class="sound_icon">♪</span><span class="sound_label">효과음</span>
         </button>
         <button type="button" class="sound_btn px_box" id="bgmBtn" aria-label="배경음 켜기/끄기">
           <span class="sound_icon">♫</span><span class="sound_label">배경음</span>
+        </button>
+        <!-- 일시정지 (게임 중에만) -->
+        <button type="button" class="sound_btn px_box hidden" id="pauseBtn" aria-label="일시정지">
+          <span class="sound_icon pause_icon" aria-hidden="true"></span><span class="sound_label">정지</span>
         </button>
       </div>
 
@@ -131,7 +130,7 @@
                 <button type="button" class="restart_btn px_btn" id="restartBtn">다시 오르기</button>
                 <button type="button" class="title_btn px_btn" id="titleBtn">처음으로</button>
               </div>
-              <button type="button" class="save_btn" id="saveBtn">▼ 사진 저장 / 공유</button>
+              <button type="button" class="save_btn" id="saveBtn">▼ 사진 저장</button>
               <p class="tablet_foot" id="tabletFoot"></p>
             </div>
           </div>

@@ -1919,7 +1919,7 @@ function prepareShareImage(info) {
 }
 
 /** 모바일: 공유 시트(카톡, 인스타 등) / PC: PNG 다운로드 */
-async function saveOrShare() {
+function saveImage() {
   if (!shareBlob) {
     showToast(location.protocol === 'file:'
       ? '파일로 직접 열면 저장이 안 돼요 (Live Server로 열기)'
@@ -1929,19 +1929,11 @@ async function saveOrShare() {
   const d = new Date();
   const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
   const safeTitle = GAME_TITLE.replace(/[\\/:*?"<>|]/g, '').trim() || 'result';
-  const file = new File([shareBlob], `${safeTitle}_${ymd}.png`, { type: 'image/png' });
-  try {
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file] });  // 이미지만 공유 (문구 없음)
-      return;
-    }
-  } catch (err) {
-    if (err && err.name === 'AbortError') return;  // 공유 취소
-  }
+  // PC / 모바일 모두 PNG 파일로 바로 다운로드
   const url = URL.createObjectURL(shareBlob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = file.name;
+  a.download = `${safeTitle}_${ymd}.png`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -2255,7 +2247,7 @@ footerLines().forEach((line, i) => {
   if (i) tabletFoot.appendChild(document.createElement('br'));
   tabletFoot.appendChild(document.createTextNode(line));
 });
-saveBtn.addEventListener('click', saveOrShare);
+saveBtn.addEventListener('click', saveImage);
 
 nicknameInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') handleStart();
@@ -2309,10 +2301,6 @@ nicknameInput.value = storage.get(STORAGE_KEYS.nickname, '');
 playerTagEl.textContent = `#${getPlayerTag()}`;
 buildCharGrid();
 buildDiffGrid();
-{
-  // 예전에 2(쉬움)/4(어려움)를 골랐던 사람은 보통으로
-  const saved = Number(storage.get(STORAGE_KEYS.diff, CONFIG.DIFFICULTY));
-  selectDifficulty(DIFFICULTY_LEVELS.includes(saved) ? saved : 3);
-}
+selectDifficulty(3);  // 처음 들어오면 항상 '보통' 선택
 selectCharacter(storage.get(STORAGE_KEYS.char, CHARACTERS[0].id));
 requestAnimationFrame(loop);

@@ -1042,15 +1042,14 @@ input {
 }
 
 /* ─── 일시정지 ─── */
-.pause_btn {
-  position: absolute;
-  top: 100px;
-  left: 14px;
-  z-index: 120;
-}
-
-.pause_btn .sound_icon {
-  letter-spacing: 1px;
+/* 굵은 막대 두 개 || (도트 느낌으로 직접 그림) */
+.pause_icon {
+  display: block;
+  width: 12px;
+  height: 14px;
+  background:
+    linear-gradient(var(--ink), var(--ink)) left / 4px 100% no-repeat,
+    linear-gradient(var(--ink), var(--ink)) right / 4px 100% no-repeat;
 }
 
 .pause_screen {
