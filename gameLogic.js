@@ -372,6 +372,20 @@ function resizeCanvas() {
   sideCut = Math.max(0, (CONFIG.GAME_W - viewW / scale) / 2);  // 화면 밖으로 잘린 양옆 폭(게임 좌표)
   offX = Math.round(((viewW - CONFIG.GAME_W * scale) / 2) * dpr) / dpr;
   viewLH = viewH / scale;
+  placeSideButtons();
+}
+
+/** 효과음/배경음/정지 버튼: 게임 영역 바로 오른쪽에 (자리가 없는 폰에선 게임 영역 안 오른쪽 끝) */
+function placeSideButtons() {
+  if (!soundToggles) return;
+  const colRight = offX + CONFIG.GAME_W * scale;
+  if (viewW - colRight >= 64) {
+    soundToggles.style.left = `${Math.round(colRight + 12)}px`;
+    soundToggles.style.right = 'auto';
+  } else {
+    soundToggles.style.left = 'auto';
+    soundToggles.style.right = '14px';
+  }
 }
 
 /** 월드 높이 → 게임 영역 내 y (아래가 +) */
@@ -2021,7 +2035,6 @@ function startGame() {
   setPaused(false);
   state.phase = 'playing';
   pauseBtn.classList.remove('hidden');
-  soundToggles.classList.remove('at_top');
   startScreen.classList.add('hidden');
   gameoverScreen.classList.add('hidden');
   soundToggles.classList.remove('hidden');
@@ -2125,7 +2138,6 @@ function goToTitle() {
   setPaused(false);
   pauseBtn.classList.add('hidden');
   state.phase = 'title';
-  soundToggles.classList.add('at_top');
   resetGame(true);
   gameoverScreen.classList.add('hidden');
   soundToggles.classList.remove('hidden');

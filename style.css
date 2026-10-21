@@ -638,7 +638,17 @@ input {
   justify-content: center;
   padding: 16px;
   overflow-y: auto;
+  scrollbar-width: none;  /* 태블릿이 올라오는 동안 스크롤바가 깜빡이지 않게 (스크롤은 됨) */
   background: rgba(11, 16, 22, 0.6);
+}
+
+.gameover_screen::-webkit-scrollbar,
+.start_screen::-webkit-scrollbar {
+  display: none;
+}
+
+.start_screen {
+  scrollbar-width: none;
 }
 
 .gameover_screen:not(.hidden) .tablet {
@@ -986,7 +996,7 @@ input {
 /* ─── 효과음 / 배경음 켜기·끄기 버튼 ─── */
 .sound_toggles {
   position: absolute;
-  top: 100px;
+  top: 92px;
   right: 14px;
   z-index: 120;
   display: flex;
@@ -1109,7 +1119,4 @@ input {
 }
 
 /* 설정 화면에선 소리 버튼을 맨 위로 (설정 카드와 안 겹치게) */
-.sound_toggles.at_top {
-  top: 16px;
-  flex-direction: row;
-}
+
