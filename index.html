@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>끝없는 계단 (가제)</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="game_wrapper" id="gameWrapper">
+      <!-- 계단 + 캐릭터 + 배경 -->
+      <canvas class="game_canvas" id="gameCanvas"></canvas>
+
+      <!-- HUD -->
+      <div class="hud hidden" id="hud">
+        <div class="hud_item px_box">
+          <span class="hud_label">층</span>
+          <span class="hud_value" id="floorDisplay">1층</span>
+        </div>
+        <div class="hud_item px_box">
+          <span class="hud_label">계단</span>
+          <span class="hud_value" id="stairsDisplay">0/4800</span>
+        </div>
+        <div class="hud_item px_box">
+          <span class="hud_label">시간</span>
+          <span class="hud_value" id="timeDisplay">0:00</span>
+        </div>
+      </div>
+
+      <!-- 안내 말풍선 -->
+      <div class="toast px_box" id="toast"></div>
+
+      <!-- 터치 조작 (터치 기기에서만 표시, 누르고 있는 동안 이동) -->
+      <div class="touch_controls hidden" id="touchControls">
+        <button type="button" class="touch_btn" id="touchLeft"><span class="touch_key px_box">◀</span></button>
+        <button type="button" class="touch_btn" id="touchRight"><span class="touch_key px_box">▶</span></button>
+      </div>
+
+      <!-- 시작(설정) 화면 -->
+      <div class="start_screen" id="startScreen">
+        <div class="start_card px_box">
+          <p class="start_eyebrow">어두운 바다의 등불이 되어 팬게임</p>
+          <h1 class="start_title">끝없는 계단</h1>
+          <p class="start_desc">
+            난간 없는 계단을 밟고 뛰어올라<br />
+            4800계단 꼭대기 문까지 가자!
+          </p>
+
+          <div class="setting_block">
+            <label class="setting_label" for="nicknameInput">닉네임</label>
+            <div class="nickname_row">
+              <input
+                type="text"
+                id="nicknameInput"
+                class="nickname_input"
+                maxlength="12"
+                placeholder="1~12자"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <span class="player_tag" id="playerTag">#0000</span>
+            </div>
+          </div>
+
+          <div class="setting_block">
+            <span class="setting_label">캐릭터</span>
+            <div class="char_grid" id="charGrid"></div>
+            <p class="setting_hint">선택하지 않은 캐릭터는 뒤를 졸졸 따라와요</p>
+          </div>
+
+          <div class="setting_block">
+            <span class="setting_label">난이도</span>
+            <div class="diff_grid" id="diffGrid"></div>
+            <p class="setting_hint" id="diffHint"></p>
+          </div>
+
+          <div class="start_instructions">
+            <div class="instruction_item"><span class="key_cap">←</span><span class="key_cap">→</span> 누르고 있으면 이동</div>
+            <div class="instruction_item"><span class="key_cap">터치</span> 화면 왼쪽 / 오른쪽 누르기</div>
+            <div class="instruction_item"><span class="key_cap">!</span> 계단을 놓쳐 떨어지면 끝</div>
+          </div>
+
+          <p class="start_error" id="startError"></p>
+          <button type="button" class="start_btn px_btn" id="startBtn">오르기 시작</button>
+        </div>
+      </div>
+
+      <!-- 결과 화면: 업무용 태블릿 -->
+      <div class="gameover_screen hidden" id="gameoverScreen">
+        <div class="tablet">
+          <div class="tablet_screen">
+
+            <div class="tablet_body">
+              <div class="polaroid" id="polaroid">
+                <span class="photo_tape"></span>
+                <canvas class="photo_canvas" id="photoCanvas" width="240" height="240"></canvas>
+                <p class="polaroid_caption" id="photoCaption"></p>
+                <span class="photo_stamp" id="photoStamp">1층!</span>
+              </div>
+
+              <p class="gameover_sub" id="gameoverSub"></p>
+
+              <div class="profile_row">
+                <span class="profile_pic"><img id="profileImg" alt="" /></span>
+                <div class="profile_text">
+                  <b class="profile_name" id="recName"></b>
+                  <span class="profile_char" id="recChar"></span>
+                </div>
+              </div>
+
+              <ul class="record_list">
+                <li><span class="record_key">모드</span><span class="record_val" id="recMode"></span></li>
+                <li><span class="record_key">계단</span><span class="record_val" id="recStairs"></span></li>
+                <li><span class="record_key">시간</span><span class="record_val" id="recTime"></span></li>
+                <li><span class="record_key">최고</span><span class="record_val" id="recBest"></span></li>
+              </ul>
+
+              <!-- [DB] 랭킹 등록 / 랭킹 탭 (2차 작업) -->
+              <div class="tablet_actions">
+                <button type="button" class="restart_btn px_btn" id="restartBtn">다시 오르기</button>
+                <button type="button" class="title_btn px_btn" id="titleBtn">처음으로</button>
+              </div>
+              <button type="button" class="save_btn" id="saveBtn">▼ 사진 저장 / 공유</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="gameLogic.js"></script>
+  </body>
+</html>

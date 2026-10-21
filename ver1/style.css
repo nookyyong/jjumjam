@@ -1,0 +1,576 @@
+/* =============================================
+   style.css — 끝없는 계단
+   ============================================= */
+
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap");
+
+/* ─── CSS Variables ─── */
+:root {
+  --color_bg: #02060f;
+  --color_accent: #f5c842;
+  --color_danger: #ff4d4d;
+  --color_text: #e8f0ff;
+  --color_sub: rgba(180, 200, 240, 0.7);
+  --color_card: rgba(18, 24, 42, 0.96);
+  --color_card_border: rgba(100, 140, 220, 0.25);
+  --color_hud_text: #8899bb;
+  --font_game: "Space Mono", monospace;
+  --font_ui: "Noto Sans KR", sans-serif;
+}
+
+/* ─── Reset ─── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--color_bg);
+  font-family: var(--font_ui);
+}
+
+/* ─── Game Wrapper ─── */
+.game_wrapper {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.game_canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+}
+
+/* ─── 바다 (타자게임에서 재사용) ─── */
+/* 높이는 gameLogic.js가 매 프레임 갱신하므로 transition 없음 */
+.ocean {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0;
+  background-color: #020408;
+  z-index: 5;
+  pointer-events: none;
+}
+.ocean::before {
+  content: "";
+  position: absolute;
+  top: -200px;
+  left: 0;
+  right: 0;
+  height: 200px;
+  background: url("./stages/wave_tile.svg") repeat-x;
+  background-size: 320px 100%;
+  animation: wave-action 15s linear infinite;
+}
+
+@keyframes wave-action {
+  0% {
+    background-position-x: 0;
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+  100% {
+    background-position-x: -320px;
+    transform: translateY(0);
+  }
+}
+
+/* ═══════════════════════════════════════════
+   HUD
+═══════════════════════════════════════════ */
+
+.hud {
+  position: absolute;
+  top: 16px;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.hud_item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 76px;
+  background: rgba(10, 15, 30, 0.6);
+  border: 1px solid rgba(100, 130, 200, 0.2);
+  border-radius: 8px;
+  padding: 8px 16px;
+  backdrop-filter: blur(8px);
+}
+
+.hud_label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color_hud_text);
+  letter-spacing: 1.5px;
+}
+
+.hud_value {
+  font-family: var(--font_game);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color_accent);
+  line-height: 1;
+}
+
+.hud_value.danger {
+  color: var(--color_danger);
+  animation: hud_pulse 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes hud_pulse {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.12);
+  }
+}
+
+/* ─── 안내 메시지 ─── */
+.toast {
+  position: absolute;
+  top: 92px;
+  left: 50%;
+  transform: translate(-50%, -6px) scale(0.85);
+  z-index: 25;
+  padding: 12px 28px;
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--color_accent);
+  background: rgba(10, 15, 30, 0.88);
+  border: 2px solid rgba(245, 200, 66, 0.7);
+  border-radius: 28px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5), 0 0 18px rgba(245, 200, 66, 0.25);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+/* ═══════════════════════════════════════════
+   TOUCH CONTROLS
+═══════════════════════════════════════════ */
+
+.touch_controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  z-index: 30;
+  display: flex;
+}
+
+.touch_btn {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 32px;
+  font-size: 28px;
+  color: rgba(255, 255, 255, 0.35);
+  background: transparent;
+  border: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+.touch_btn:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* 마우스 기기에서는 터치 버튼 숨김 */
+@media (hover: hover) and (pointer: fine) {
+  .touch_controls {
+    display: none;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   START SCREEN
+═══════════════════════════════════════════ */
+
+.start_screen {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+  touch-action: pan-y;
+  background: rgba(2, 6, 15, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.start_card {
+  width: 100%;
+  max-width: 400px;
+  margin: auto;
+  padding: 36px 32px;
+  text-align: center;
+  background: var(--color_card);
+  border: 1.5px solid var(--color_card_border);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  user-select: auto;
+  -webkit-user-select: auto;
+}
+
+.start_eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(245, 200, 66, 0.6);
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.start_title {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--color_accent);
+  letter-spacing: -0.5px;
+  margin-bottom: 10px;
+}
+
+.start_desc {
+  font-size: 14px;
+  color: var(--color_sub);
+  line-height: 1.7;
+  margin-bottom: 22px;
+}
+
+.setting_block {
+  text-align: left;
+  margin-bottom: 18px;
+}
+
+.setting_label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color_hud_text);
+  margin-bottom: 6px;
+}
+
+.setting_hint {
+  font-size: 11px;
+  color: rgba(140, 160, 210, 0.5);
+  margin-top: 6px;
+}
+
+.nickname_row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nickname_input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 14px;
+  font-family: var(--font_ui);
+  font-size: 16px;
+  color: var(--color_text);
+  background: rgba(8, 12, 22, 0.9);
+  border: 1.5px solid rgba(245, 200, 66, 0.35);
+  border-radius: 10px;
+  outline: none;
+  caret-color: var(--color_accent);
+}
+
+.nickname_input:focus {
+  border-color: rgba(245, 200, 66, 0.75);
+}
+
+.player_tag {
+  font-family: var(--font_game);
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(245, 200, 66, 0.7);
+}
+
+/* ─── 캐릭터 선택 ─── */
+.char_grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.char_card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.char_card:hover {
+  border-color: rgba(245, 200, 66, 0.35);
+}
+
+.char_card.selected {
+  background: rgba(245, 200, 66, 0.1);
+  border-color: var(--color_accent);
+}
+
+.char_thumb {
+  position: relative;
+  width: 38px;
+  height: 57px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 900;
+  color: rgba(13, 17, 23, 0.75);
+  background: var(--char_color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.char_thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.char_thumb.has_img {
+  background: transparent;
+  color: transparent;
+}
+
+.char_name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color_sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.start_instructions {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.instruction_item {
+  font-size: 12px;
+  color: rgba(160, 185, 230, 0.8);
+  text-align: left;
+}
+
+.start_error {
+  min-height: 18px;
+  font-size: 12px;
+  color: var(--color_danger);
+  margin-bottom: 6px;
+}
+
+.start_btn {
+  width: 100%;
+  padding: 14px;
+  font-family: var(--font_ui);
+  font-size: 16px;
+  font-weight: 700;
+  color: #0d1117;
+  background: var(--color_accent);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(245, 200, 66, 0.35);
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+}
+
+.start_btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(245, 200, 66, 0.5);
+}
+
+/* ═══════════════════════════════════════════
+   GAME OVER SCREEN
+═══════════════════════════════════════════ */
+
+.gameover_screen {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(2, 6, 15, 0.55);
+  animation: fade_in 0.4s ease;
+}
+
+@keyframes fade_in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.gameover_card {
+  width: 100%;
+  max-width: 360px;
+  padding: 36px 32px;
+  text-align: center;
+  background: var(--color_card);
+  border: 1.5px solid var(--color_card_border);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.gameover_title {
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--color_text);
+  margin-bottom: 8px;
+}
+
+.gameover_sub {
+  font-size: 13px;
+  color: var(--color_sub);
+  margin-bottom: 20px;
+}
+
+.gameover_stats {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.gameover_stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(245, 200, 66, 0.15);
+  border-radius: 10px;
+}
+
+.gameover_stat_label {
+  font-size: 11px;
+  color: var(--color_hud_text);
+}
+
+.gameover_stat_val {
+  font-family: var(--font_game);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color_accent);
+}
+
+.restart_btn {
+  width: 100%;
+  margin-top: 20px;
+  padding: 14px;
+  font-family: var(--font_ui);
+  font-size: 16px;
+  font-weight: 700;
+  color: #0d1117;
+  background: var(--color_accent);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.title_btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 11px;
+  font-family: var(--font_ui);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color_sub);
+  background: transparent;
+  border: 1.5px solid rgba(100, 140, 220, 0.25);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+/* ─── 유틸리티 ─── */
+.hidden {
+  display: none !important;
+}
+
+/* ─── 반응형 ─── */
+@media (max-width: 480px) {
+  .start_card,
+  .gameover_card {
+    padding: 28px 20px;
+  }
+
+  .hud {
+    gap: 8px;
+  }
+
+  .hud_item {
+    min-width: 64px;
+    padding: 6px 10px;
+  }
+
+  .hud_value {
+    font-size: 18px;
+  }
+}

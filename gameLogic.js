@@ -1,0 +1,1686 @@
+/* =============================================
+   gameLogic.js — 끝없는 계단 (점프 방식 프로토타입)
+   ============================================= */
+
+'use strict';
+
+/* ─── 캐릭터 ─── */
+// 4방향 이미지를 반전 없이 그대로 사용 (16×24 픽셀아트)
+// 파일: images/{key}_right_stand.png / _left_stand.png / _right_jump.png / _left_jump.png
+// - stand: 떨어지는 동안 표시 / jump: 위로 튀어오르는 동안 표시
+// - 이미지가 없으면 색상 박스로 표시
+const CHARACTERS = [
+  { id: 'c1', key: 'char1', name: '신해량', color: '#f0b97a' },
+  { id: 'c2', key: 'char2', name: '서지혁', color: '#f08aad' },
+  { id: 'c3', key: 'char3', name: '박무현', color: '#b08af0' },
+  { id: 'c4', key: 'char4', name: '백애영', color: '#7ad4b0' },
+  { id: 'c5', key: 'char5', name: '유금이', color: '#7ac4f0' },
+];
+
+const SPRITE_POSES = ['right_stand', 'left_stand', 'right_jump', 'left_jump'];
+const spritePath = (ch, pose) => `images/${ch.key}_${pose}.png`;
+
+/* ─── 게임 설정 ─── */
+const CONFIG = {
+  // 규칙
+  GOAL_STAIRS: 4800,     // 원작 계단 수
+  GOAL_FLOOR: 180,       // 원작 층수 (계단 수를 환산해서 표시)
+  DIFFICULTY: 3,         // 기본 난이도 1~5 (설정 화면에서 선택 가능, 아래 DIFFICULTY_PRESETS)
+
+  // 화면 (게임 영역은 가로 400 고정, 화면에 맞게 확대/축소)
+  GAME_W: 400,
+  MIN_VIEW_H: 640,       // PC에서 최소 이만큼의 높이가 보이도록 축소
+  CAM_PLAYER_Y: 0.45,    // 캐릭터가 화면 아래에서 45% 위치를 넘으면 카메라가 따라 올라감
+
+  // 물리 (단위: px, 초)
+  // 점프 높이 = JUMP_V² / (2 × GRAVITY). 속도만 바꿀 땐 높이가 유지되도록 둘을 같이 조정
+  // (일반 점프 높이 약 187은 난이도별 GAP_MAX 최대값보다 커야 항상 올라갈 수 있음)
+  GRAVITY: 1200,
+  JUMP_V: 670,           // 일반 점프 → 최고 높이 약 187px, 체공 약 1.1초
+  SPRING_V: 1100,        // 스프링 점프 → 최고 높이 약 504px
+  MOVE_SPEED: 250,       // 좌우 최고 속도
+  MOVE_ACCEL: 10,        // 클수록 좌우 반응이 즉각적
+
+  // 픽셀아트 배율: 이미지 1px = 게임 좌표 2.4 (캐릭터 16×24 → 38×57)
+  PIX: 2.4,
+
+  // 계단(발판)  이미지 30×6px
+  PLAT_H: 14.4,
+  // 계단 간격/종류/너비는 난이도 프리셋에서 설정됨 (DIFFICULTY_PRESETS)
+  // 다음 계단까지 좌우 거리 제한: 간격이 좁을 땐 넓게, 간격이 넓을 땐 가깝게
+  // (높이 올라가야 하는 만큼 좌우로 이동할 시간이 줄어들기 때문)
+  // 다음 계단까지 좌우 거리: 그 높이까지 뛰는 동안 좌우로 풀이동했을 때 갈 수 있는 거리 기준
+  // (위로 많이 올라가야 할수록 체공 시간이 줄어서 좌우 거리도 줄어듦)
+  REACH_MARGIN: 0.9,     // 풀이동 거리의 몇 %까지 쓸지 (1에 가까울수록 어려움)
+  REACH_BONUS: 30,       // 계단/캐릭터 너비 덕분에 추가로 닿는 거리(px)
+  SPRING_W: 24,          // 이미지 10px
+
+  // 캐릭터
+  CHAR_W: 38.4,          // 16×24 이미지 × PIX(2.4)
+  CHAR_H: 57.6,
+  HITBOX_W: 28,          // 발판 판정 너비
+
+  // 안내
+  TOAST_FLOOR_STEP: 30,  // 몇 층마다 통과 안내를 띄울지
+  TOAST_MS: 2500,
+
+  // 꼭대기 문 (닿으면 결과 표시)
+  DOOR_W: 40.8,          // 이미지 17×27px
+  DOOR_H: 64.8,
+  PHOTO_SIZE: 248,       // 결과 폴라로이드 사진 크기(px). 게임 화면을 이만큼 1:1로 잘라옴
+  EXIT_SLIDE_MS: 500,    // 캐릭터 하나가 문 밖으로 미끄러져 나가는 시간
+  DOOR_OPEN: 0.7,        // 평소 문짝 비율 (1 = 닫힘, 작을수록 활짝 열림)
+  DOOR_OPEN_EXIT: 0.25,  // 나갈 때 문이 더 열린 상태
+  FOLLOW_DELAY_MS: 110,  // 따라오는 캐릭터 간 지연
+
+  // 화면
+  START_PAD: 70,         // 시작 바닥 아래로 보이는 여백
+  WALL_PARALLAX: 0.6,    // 벽 배경이 계단보다 느리게 움직이는 정도 (깊이감)
+  WALL_DARK_START: 0.82,  // 시작층 벽 어둡기 (1 = 완전 검정)
+  WALL_DARK_END: 0.5,     // 꼭대기 벽 어둡기 (지금 밝기가 최대)
+  HYDRANT_X: 34,         // 시작층 소화전(들어온 곳) 위치
+};
+
+/* ─── 난이도 프리셋 ─── */
+// [시작값, 꼭대기값] 쌍은 높이 올라갈수록 시작값 → 꼭대기값으로 변함
+//   PX_PER_STAIR  1계단 높이(클수록 꼭대기까지 멀어짐)
+//   GAP_MIN/MAX   계단 사이 세로 간격 (GAP_MAX는 187 미만 유지)
+//   PLAT_W        계단 너비 (이미지 30px = 72)
+const DIFFICULTY_PRESETS = {
+  1: { PX_PER_STAIR: 5, GAP_MIN: [30, 55], GAP_MAX: [90, 125], MOVING_CHANCE: [0.03, 0.15], CRUMBLE_CHANCE: [0.05, 0.15], SPRING_CHANCE: 0.10, MOVING_SPEED: [50, 120], PLAT_W: [72, 72] },
+  2: { PX_PER_STAIR: 5, GAP_MIN: [30, 65], GAP_MAX: [90, 140], MOVING_CHANCE: [0.03, 0.20], CRUMBLE_CHANCE: [0.05, 0.20], SPRING_CHANCE: 0.10, MOVING_SPEED: [50, 120], PLAT_W: [72, 72] },
+  3: { PX_PER_STAIR: 6, GAP_MIN: [35, 75], GAP_MAX: [95, 155], MOVING_CHANCE: [0.05, 0.28], CRUMBLE_CHANCE: [0.08, 0.28], SPRING_CHANCE: 0.07, MOVING_SPEED: [60, 150], PLAT_W: [72, 57.6] },
+  4: { PX_PER_STAIR: 7, GAP_MIN: [40, 85], GAP_MAX: [100, 165], MOVING_CHANCE: [0.05, 0.32], CRUMBLE_CHANCE: [0.10, 0.35], SPRING_CHANCE: 0.05, MOVING_SPEED: [70, 170], PLAT_W: [67.2, 52.8] },
+  5: { PX_PER_STAIR: 8, GAP_MIN: [45, 95], GAP_MAX: [110, 172], MOVING_CHANCE: [0.06, 0.35], CRUMBLE_CHANCE: [0.12, 0.40], SPRING_CHANCE: 0.04, MOVING_SPEED: [80, 190], PLAT_W: [62.4, 43.2] },
+};
+const DIFFICULTY_NAMES = { 1: '연습', 2: '쉬움', 3: '보통', 4: '어려움', 5: '지옥' };
+const DIFFICULTY_HINTS = {
+  1: '넓고 가까운 계단. 연습용',
+  2: '무너지는 계단이 가끔 나와요',
+  3: '위로 갈수록 계단이 좁아져요',
+  4: '움직이는 계단이 빨라지고 스프링이 귀해요',
+  5: '좁고, 멀고, 잘 무너져요',
+};
+
+let GOAL_Y = 0;  // 꼭대기 높이 (난이도에 따라 달라짐)
+
+/** 난이도 프리셋을 CONFIG에 적용 */
+function applyDifficulty(level) {
+  const preset = DIFFICULTY_PRESETS[level] || DIFFICULTY_PRESETS[3];
+  Object.assign(CONFIG, preset);
+  CONFIG.DIFFICULTY = DIFFICULTY_PRESETS[level] ? level : 3;
+  CONFIG.PLAT_W_RANGE = preset.PLAT_W;
+  CONFIG.PLAT_W = preset.PLAT_W[0];  // 기본(최대) 너비
+  GOAL_Y = CONFIG.GOAL_STAIRS * CONFIG.PX_PER_STAIR;
+}
+applyDifficulty(CONFIG.DIFFICULTY);
+
+/* ─── 개발용 테스트 옵션 ─── */
+// 로컬(Live Server 등)에서만 동작. GitHub Pages 배포 주소에서는 무시됨
+//   ?start=4750   → 4750계단 높이에서 시작
+//   ?god=1        → 아래로 떨어져도 죽지 않고 튀어오름
+//   예) http://127.0.0.1:5500/index.html?start=4750&god=1
+const DEV = (() => {
+  const local = ['localhost', '127.0.0.1', ''].includes(location.hostname);
+  const q = new URLSearchParams(location.search);
+  const start = Math.min(CONFIG.GOAL_STAIRS - 10, Math.max(0, parseInt(q.get('start'), 10) || 0));
+  return {
+    on: local,
+    startStairs: local ? start : 0,
+    god: local && q.get('god') === '1',
+  };
+})();
+if (DEV.on && (DEV.startStairs || DEV.god)) {
+  console.log(`[DEV] 시작 ${DEV.startStairs}계단, 무적 ${DEV.god ? 'ON' : 'OFF'}`);
+}
+
+const STORAGE_KEYS = {
+  nickname: 'stairs_nickname',
+  char: 'stairs_char',
+  tag: 'stairs_tag',
+  best: 'stairs_best_jump_d',  // + 난이도 번호. { stairs, timeMs }
+  diff: 'stairs_diff',
+};
+
+/* ─── 저장소 (localStorage 실패해도 게임은 동작) ─── */
+const storage = {
+  get(key, fallback) {
+    try {
+      const v = localStorage.getItem(key);
+      return v === null ? fallback : v;
+    } catch {
+      return fallback;
+    }
+  },
+  set(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      /* 무시 */
+    }
+  },
+};
+
+/* ─── 이미지 로드 ─── */
+function loadImage(src) {
+  const holder = { el: null, ok: false };
+  if (!src) return holder;
+  const img = new Image();
+  img.onload = () => { holder.ok = true; };
+  img.src = src;
+  holder.el = img;
+  return holder;
+}
+
+// 배경/계단/소품 픽셀 이미지 (images/ 폴더. 같은 이름으로 덮어쓰면 교체됨)
+const IMG = {};
+[
+  'wall', 'wall_crack', 'wall_rebar', 'prop_stain', 'prop_crack',
+  'stair_normal', 'stair_moving', 'stair_crumble', 'floor_tile', 'goal_tile',
+  'spring', 'spring_on', 'door_frame', 'door_leaf', 'exit_sign', 'hydrant_door', 'hydrant_leaf',
+].forEach(name => { IMG[name] = loadImage(`images/${name}.png`); });
+
+CHARACTERS.forEach(ch => {
+  ch.sprites = {};
+  SPRITE_POSES.forEach(pose => { ch.sprites[pose] = loadImage(spritePath(ch, pose)); });
+});
+
+/* ─── 게임 상태 ─── */
+const state = {
+  phase: 'title',        // title | playing | over
+  platforms: [],
+  genTopY: 0,            // 가장 위에 생성된 계단 높이
+  genLastX: 0,           // 마지막으로 생성된 계단의 중심 x
+  player: null,
+  history: [],           // { t, x, y, dir, rising } — 따라오는 캐릭터가 지연 재생
+  followers: [],
+  camBottom: 0,          // 화면 맨 아래의 월드 높이
+  elapsed: 0,            // 경과 시간(ms)
+  now: 0,
+  lastTs: null,
+  keys: { left: false, right: false },
+  selectedChar: CHARACTERS[0].id,
+  hudCache: {},
+  toastsShown: {},
+  summit: false,         // 꼭대기 계단 도착 (문까지 자유 이동)
+  summitTimeMs: 0,       // 꼭대기 도착 시간 = 기록
+  door: null,            // { x, y } 꼭대기 문
+  exiting: false,        // 문에 들어가는 중
+  exitT: 0,              // 메인캐릭터가 문에 닿은 시각
+  exitPath: null,        // 문 밖으로 나가는 경로
+  cleared: false,        // 문 통과 (결과 표시)
+  startY: 0,             // 시작 바닥 높이
+  particles: [],         // 먼지/부스러기 { x, y, vx, vy, life, max, size, color }
+  motes: [],             // 공기 중 떠다니는 먼지 (화면 좌표)
+  wantShot: null,        // 다음 렌더 후 찍을 사진 중심 { wx, wy }
+  shot: null,            // 마지막으로 찍은 사진 { canvas, cx, cy } (결과 화면 폴라로이드용)
+  shotArmed: true,       // 떨어지는 장면 사진을 한 번만 찍도록
+};
+
+/* ─── DOM 참조 ─── */
+const gameWrapper    = document.getElementById('gameWrapper');
+const canvas         = document.getElementById('gameCanvas');
+const ctx            = canvas.getContext('2d');
+const hudEl          = document.getElementById('hud');
+const floorDisplay   = document.getElementById('floorDisplay');
+const stairsDisplay  = document.getElementById('stairsDisplay');
+const timeDisplay    = document.getElementById('timeDisplay');
+const toastEl        = document.getElementById('toast');
+const touchControls  = document.getElementById('touchControls');
+const touchLeft      = document.getElementById('touchLeft');
+const touchRight     = document.getElementById('touchRight');
+const startScreen    = document.getElementById('startScreen');
+const nicknameInput  = document.getElementById('nicknameInput');
+const playerTagEl    = document.getElementById('playerTag');
+const charGrid       = document.getElementById('charGrid');
+const startError     = document.getElementById('startError');
+const startBtn       = document.getElementById('startBtn');
+const gameoverScreen = document.getElementById('gameoverScreen');
+const gameoverSub    = document.getElementById('gameoverSub');
+const recName        = document.getElementById('recName');
+const recChar        = document.getElementById('recChar');
+const profileImg     = document.getElementById('profileImg');
+const recMode        = document.getElementById('recMode');
+const recStairs      = document.getElementById('recStairs');
+const recTime        = document.getElementById('recTime');
+const recBest        = document.getElementById('recBest');
+const photoCanvas    = document.getElementById('photoCanvas');
+const photoCaption   = document.getElementById('photoCaption');
+const photoStamp     = document.getElementById('photoStamp');
+const diffGrid       = document.getElementById('diffGrid');
+const diffHint       = document.getElementById('diffHint');
+const saveBtn        = document.getElementById('saveBtn');
+const restartBtn     = document.getElementById('restartBtn');
+const titleBtn       = document.getElementById('titleBtn');
+
+/* ─── 유틸 ─── */
+// 계단 생성용 난수: 게임 중엔 Math.random, 설정 화면 배경은 항상 같은 배치가 나오도록 고정 시드
+let rng = Math.random;
+function seededRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const TITLE_SEED = 4800;
+const rand = (min, max) => rng() * (max - min) + min;
+const lerp = (range, t) => range[0] + (range[1] - range[0]) * t;
+
+function getCharacter(id) {
+  return CHARACTERS.find(c => c.id === id) || CHARACTERS[0];
+}
+
+function stairsOf(y) {
+  return Math.min(CONFIG.GOAL_STAIRS, Math.max(0, Math.floor(y / CONFIG.PX_PER_STAIR)));
+}
+
+/** 계단 수 → 원작 층수 환산 (0계단 = 1층, 4800계단 = 180층) */
+function floorOf(stairs) {
+  return Math.max(1, Math.ceil(stairs * CONFIG.GOAL_FLOOR / CONFIG.GOAL_STAIRS));
+}
+
+function formatClock(ms) {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function formatRecord(ms) {
+  const t = Math.floor(ms / 100);
+  const s = Math.floor(t / 10);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}.${t % 10}`;
+}
+
+/**
+ * 기록 비교 (랭킹 정렬과 동일 기준)
+ * 1) 오른 계단 수 많은 순  2) 같으면 걸린 시간 짧은 순
+ */
+function isBetter(a, b) {
+  if (!b) return true;
+  if (a.stairs !== b.stairs) return a.stairs > b.stairs;
+  return a.timeMs < b.timeMs;
+}
+
+function formatResult(r) {
+  return r.stairs >= CONFIG.GOAL_STAIRS ? formatRecord(r.timeMs) : `${r.stairs.toLocaleString()}계단`;
+}
+
+/** 브라우저별 랭킹 구분용 4자리 태그 (개인정보 없이 동명이인 구분) */
+function getPlayerTag() {
+  let tag = storage.get(STORAGE_KEYS.tag, '');
+  if (!/^\d{4}$/.test(tag)) {
+    tag = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+    storage.set(STORAGE_KEYS.tag, tag);
+  }
+  return tag;
+}
+
+function loadBest() {
+  try {
+    const b = JSON.parse(storage.get(STORAGE_KEYS.best + CONFIG.DIFFICULTY, 'null'));
+    return b && Number.isFinite(b.stairs) && Number.isFinite(b.timeMs) ? b : null;
+  } catch {
+    return null;
+  }
+}
+
+/* ─── 캔버스 크기 ─── */
+let dpr = 1;
+let viewW = 0;
+let viewH = 0;
+let scale = 1;      // 게임 좌표 → 화면 px
+let offX = 0;       // 게임 영역 왼쪽 여백(화면 px)
+let viewLH = 0;     // 화면에 보이는 게임 좌표 높이
+let sideCut = 0;    // 좁은 화면에서 양옆이 잘린 폭
+
+function resizeCanvas() {
+  dpr = Math.min(window.devicePixelRatio || 1, 3);
+  viewW = gameWrapper.clientWidth;
+  viewH = gameWrapper.clientHeight;
+  canvas.width  = Math.round(viewW * dpr);
+  canvas.height = Math.round(viewH * dpr);
+
+  // 도트 1칸이 화면에서 정확히 정수 픽셀이 되도록 배율을 맞춤 (안 맞으면 도트 크기가 들쭉날쭉해서 찌그러져 보임)
+  const fit = Math.min(viewW / CONFIG.GAME_W, viewH / CONFIG.MIN_VIEW_H);
+  const perArt = CONFIG.PIX * dpr;
+  // 가까운 정수로 반올림. 화면 가로를 8% 넘게 넘치면 한 단계 작게 (조금 넘치는 건 양옆을 살짝 잘라냄)
+  let k = Math.max(1, Math.round(fit * perArt));
+  if ((k / perArt) * CONFIG.GAME_W > viewW * 1.08) k = Math.max(1, Math.floor(fit * perArt));
+  scale = k / perArt;
+  sideCut = Math.max(0, (CONFIG.GAME_W - viewW / scale) / 2);  // 화면 밖으로 잘린 양옆 폭(게임 좌표)
+  offX = Math.round(((viewW - CONFIG.GAME_W * scale) / 2) * dpr) / dpr;
+  viewLH = viewH / scale;
+}
+
+/** 월드 높이 → 게임 영역 내 y (아래가 +) */
+function toLY(wy) {
+  return viewLH - (wy - state.camBottom);
+}
+
+/* ─── 계단 생성 ─── */
+/**
+ * 세로로 gap만큼 위에 있는 계단에 내려앉을 때까지 좌우로 풀이동하면 갈 수 있는 거리
+ * (정지 상태에서 출발 가정, 게임과 같은 물리로 계산)
+ */
+const travelCache = new Map();
+function maxTravelX(gap) {
+  const key = Math.round(gap);
+  if (travelCache.has(key)) return travelCache.get(key);
+
+  const dt = 1 / 60;
+  let x = 0, vx = 0, y = 0, vy = CONFIG.JUMP_V, result = 0;
+  for (let i = 0; i < 600; i++) {
+    vx += (CONFIG.MOVE_SPEED - vx) * Math.min(1, CONFIG.MOVE_ACCEL * dt);
+    vy -= CONFIG.GRAVITY * dt;
+    x += vx * dt;
+    y += vy * dt;
+    if (vy < 0 && y <= key) { result = x; break; }
+  }
+  travelCache.set(key, result);
+  return result;
+}
+
+/** 이전 계단 기준으로 도달 가능한 범위 안에 다음 계단 x 결정 */
+function nextPlatformX(gap, platW) {
+  const W = CONFIG.GAME_W;
+  const reach = maxTravelX(gap) * CONFIG.REACH_MARGIN + CONFIG.REACH_BONUS;
+
+  // 화면 안에서만, 이전 계단 기준 reach 범위 안에서 고름
+  const half = platW / 2;
+  const lo = Math.max(half, state.genLastX - reach);
+  const hi = Math.min(W - half, state.genLastX + reach);
+  const cx = rand(lo, hi);
+  state.genLastX = cx;
+  return cx - half;
+}
+
+function makePlatform(y, t, gap) {
+  const r = rng();
+  const movingP = lerp(CONFIG.MOVING_CHANCE, t);
+  const crumbleP = lerp(CONFIG.CRUMBLE_CHANCE, t);
+
+  let type = 'normal';
+  if (r < crumbleP) type = 'crumble';
+  else if (r < crumbleP + movingP) type = 'moving';
+
+  // 높이 올라갈수록 좁아짐 (픽셀 단위로 맞춤)
+  const w = Math.round(lerp(CONFIG.PLAT_W_RANGE, t) / CONFIG.PIX) * CONFIG.PIX;
+  const plat = {
+    x: nextPlatformX(gap, w),
+    y,
+    w,
+    type,
+    vx: 0,
+    spring: null,
+    crumbling: false,
+    fallV: 0,
+    alpha: 1,
+  };
+
+  if (type === 'moving') {
+    plat.vx = rand(CONFIG.MOVING_SPEED[0], CONFIG.MOVING_SPEED[1]) * (rng() < 0.5 ? -1 : 1);
+  }
+  // 꼭대기 바로 아래에는 스프링 없음 (꼭대기 위로 튀어나가 화면이 어긋나는 것 방지)
+  const nearGoal = y > GOAL_Y - 700;
+  if (type !== 'crumble' && !nearGoal && rng() < CONFIG.SPRING_CHANCE) {
+    plat.spring = { ox: rand(4, w - CONFIG.SPRING_W - 4), usedT: -1e9 };
+  }
+  return plat;
+}
+
+function generatePlatforms() {
+  const limit = state.camBottom + viewLH + 300;
+  while (state.genTopY < limit && state.genTopY < GOAL_Y) {
+    const t = Math.min(1, state.genTopY / GOAL_Y);
+    const gap = rand(lerp(CONFIG.GAP_MIN, t), lerp(CONFIG.GAP_MAX, t));
+    const y = state.genTopY + gap;
+
+    if (y >= GOAL_Y - 40) {
+      // 꼭대기: 가로 전체 금색 계단
+      state.platforms.push({
+        x: 0, y: GOAL_Y, w: CONFIG.GAME_W, type: 'goal',
+        // 문 위치: 마지막 계단 반대쪽 끝 근처
+        doorX: state.genLastX < CONFIG.GAME_W / 2 ? CONFIG.GAME_W - 30 - CONFIG.DOOR_W : 30,
+        vx: 0, spring: null, crumbling: false, fallV: 0, alpha: 1,
+      });
+      state.genTopY = GOAL_Y;
+      break;
+    }
+
+    state.platforms.push(makePlatform(y, t, gap));
+    state.genTopY = y;
+  }
+}
+
+/* ─── 게임 초기화 ─── */
+/** fixedLayout: 설정 화면 배경용 (항상 같은 계단 배치) */
+function resetGame(fixedLayout = false) {
+  rng = fixedLayout ? seededRng(TITLE_SEED) : Math.random;
+  // 시작 높이 (개발용 ?start= 옵션이 없으면 0)
+  const startY = DEV.startStairs * CONFIG.PX_PER_STAIR;
+  state.startY = startY;
+  state.particles = [];
+  state.shot = null;
+  state.wantShot = null;
+  state.shotArmed = true;
+
+  // 시작 바닥 (가로 전체)
+  state.platforms = [{
+    x: 0, y: startY, w: CONFIG.GAME_W, type: 'floor',
+    vx: 0, spring: null, crumbling: false, fallV: 0, alpha: 1,
+  }];
+  state.genTopY = startY;
+  state.genLastX = CONFIG.GAME_W / 2;
+  state.camBottom = startY - CONFIG.START_PAD;
+
+  state.player = {
+    x: CONFIG.GAME_W / 2,
+    y: startY,
+    vx: 0,
+    vy: CONFIG.JUMP_V,
+    dir: 1,
+    maxY: startY,
+  };
+  state.history = [];
+  state.followers = CHARACTERS
+    .filter(c => c.id !== state.selectedChar)
+    .map(ch => ({ ch }));
+
+  state.elapsed = 0;
+  state.keys.left = false;
+  state.keys.right = false;
+  state.hudCache = {};
+  state.toastsShown = {};
+  state.summit = false;
+  state.summitTimeMs = 0;
+  state.door = null;
+  state.exiting = false;
+  state.exitT = 0;
+  state.cleared = false;
+  generatePlatforms();
+  updateHUD();
+}
+
+/* ─── 충돌 ─── */
+function overlapsX(px, x1, x2) {
+  const hw = CONFIG.HITBOX_W / 2;
+  return px + hw > x1 && px - hw < x2;
+}
+
+function land(plat) {
+  const p = state.player;
+  p.y = plat.y;
+  state.shotArmed = true;
+
+  if (plat.spring && overlapsX(p.x, plat.x + plat.spring.ox, plat.x + plat.spring.ox + CONFIG.SPRING_W)) {
+    p.vy = CONFIG.SPRING_V;
+    plat.spring.usedT = state.now;
+  } else {
+    p.vy = CONFIG.JUMP_V;
+  }
+
+  spawnDust(p.x, plat.y, p.vy === CONFIG.SPRING_V ? 26 : 16, p.vy === CONFIG.SPRING_V ? 1.4 : 1);
+  if (plat.type === 'crumble') {
+    plat.crumbling = true;
+    spawnDebris(plat);
+  }
+  if (plat.type === 'goal' && state.phase === 'playing' && !state.summit) {
+    reachSummit(plat);
+  }
+}
+
+/* ─── 먼지 / 부스러기 ─── */
+/** 착지 먼지: 발밑에서 양옆으로 퍼지며 천천히 가라앉는 먼지 구름 */
+function spawnDust(x, y, n, power = 1) {
+  const colors = ['#e6e0d4', '#d2ccbf', '#bdb6a9'];
+  for (let i = 0; i < n; i++) {
+    const dir = i % 2 ? 1 : -1;
+    const big = i % 3 === 0;
+    state.particles.push({
+      x: x + dir * rand(2, 16), y: y + rand(0, 8),
+      vx: dir * rand(70, 220) * power, vy: rand(30, 130) * power,
+      g: -110, drag: 4, life: 0, max: rand(0.6, 1.1), size: big ? 9.6 : 7.2,
+      color: colors[i % colors.length],
+    });
+  }
+}
+
+function spawnDebris(plat) {
+  for (let i = 0; i < 10; i++) {
+    state.particles.push({
+      x: plat.x + rand(4, plat.w - 4), y: plat.y - rand(0, CONFIG.PLAT_H),
+      vx: rand(-40, 40), vy: rand(20, 120),
+      g: -CONFIG.GRAVITY, life: 0, max: rand(0.6, 1.1), size: i % 3 ? 2.4 : 4.8,
+      color: i % 2 ? '#77726b' : '#5c5853',
+    });
+  }
+}
+
+/** 층 통과 축하 종이가루 */
+function spawnConfetti(x, y) {
+  const colors = ['#ffd23f', '#ff8fab', '#6fe3c1', '#fff4dc'];
+  for (let i = 0; i < 28; i++) {
+    const a = rand(-Math.PI * 0.9, -Math.PI * 0.1);
+    const sp = rand(220, 420);
+    state.particles.push({
+      x, y,
+      vx: Math.cos(a) * sp, vy: -Math.sin(a) * sp,
+      g: -700, drag: 1.6, life: 0, max: rand(0.9, 1.4), size: i % 3 ? 4.8 : 7.2,
+      color: colors[i % colors.length],
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (const pt of state.particles) {
+    pt.life += dt;
+    if (pt.drag) {
+      const k = Math.max(0, 1 - pt.drag * dt);
+      pt.vx *= k;
+      pt.vy *= k;
+    }
+    pt.vy += pt.g * dt;
+    pt.x += pt.vx * dt;
+    pt.y += pt.vy * dt;
+  }
+  state.particles = state.particles.filter(pt => pt.life < pt.max);
+
+  // 공기 중 먼지: 화면 좌표, 아주 천천히 떠다님
+  if (state.motes.length === 0) {
+    for (let i = 0; i < 26; i++) {
+      state.motes.push({ x: rand(0, CONFIG.GAME_W), y: rand(0, 1), vx: rand(-4, 4), vy: rand(-6, -2), ph: rand(0, 6.28) });
+    }
+  }
+  for (const m of state.motes) {
+    m.x += (m.vx + Math.sin(state.now / 1500 + m.ph) * 4) * dt;
+    m.y += (m.vy / Math.max(viewLH, 1)) * dt;
+    if (m.y < 0) m.y += 1;
+    if (m.x < 0) m.x += CONFIG.GAME_W;
+    if (m.x > CONFIG.GAME_W) m.x -= CONFIG.GAME_W;
+  }
+}
+
+/* ─── 업데이트 ─── */
+function update(dt) {
+  const p = state.player;
+  const W = CONFIG.GAME_W;
+
+  // 문으로 들어가는 중: 움직임 정지, 마지막 캐릭터까지 사라지면 결과 표시
+  if (state.exiting) {
+    if (!state.exitShotTaken && state.now - state.exitT > 160) {
+      state.exitShotTaken = true;
+      state.wantShot = { wx: state.door.x + CONFIG.DOOR_W / 2, wy: state.door.y + CONFIG.DOOR_H * 0.35 };
+    }
+    const doneT = state.exitT + state.followers.length * CONFIG.FOLLOW_DELAY_MS + CONFIG.EXIT_SLIDE_MS + 300;
+    if (state.phase === 'playing' && state.now >= doneT) endGame('clear');
+    updateHUD();
+    return;
+  }
+
+  if (state.phase === 'playing' && !state.summit) state.elapsed += dt * 1000;
+
+  // 좌우 이동 (게임 중에만 입력 반영)
+  const input = state.phase === 'playing' ? (state.keys.right ? 1 : 0) - (state.keys.left ? 1 : 0) : 0;
+  p.vx += (input * CONFIG.MOVE_SPEED - p.vx) * Math.min(1, CONFIG.MOVE_ACCEL * dt);
+  if (input !== 0) p.dir = input;
+
+  // 중력 + 이동
+  const prevY = p.y;
+  p.vy -= CONFIG.GRAVITY * dt;
+  p.x += p.vx * dt;
+  p.y += p.vy * dt;
+  // 화면 양 끝은 벽
+  const halfW = CONFIG.CHAR_W / 2 + sideCut;
+  if (p.x < halfW) { p.x = halfW; p.vx = Math.max(0, p.vx); }
+  if (p.x > W - halfW) { p.x = W - halfW; p.vx = Math.min(0, p.vx); }
+
+  // 계단 움직임 / 무너짐
+  for (const plat of state.platforms) {
+    if (plat.type === 'moving' && !plat.crumbling) {
+      plat.x += plat.vx * dt;
+      if (plat.x < 0) { plat.x = 0; plat.vx *= -1; }
+      if (plat.x > W - plat.w) { plat.x = W - plat.w; plat.vx *= -1; }
+    }
+    if (plat.crumbling) {
+      plat.fallV += CONFIG.GRAVITY * dt;
+      plat.y -= plat.fallV * dt;
+      plat.alpha = Math.max(0, plat.alpha - dt * 2.5);
+    }
+  }
+
+  // 착지 (떨어지는 중에만)
+  // 게임 중이거나, 꼭대기 도착 후에만 착지. 떨어져서 게임오버된 뒤에는 착지 안 함
+  if (p.vy < 0 && (state.phase === 'playing' || state.cleared)) {
+    for (const plat of state.platforms) {
+      if (plat.crumbling) continue;
+      if (prevY >= plat.y && p.y <= plat.y && overlapsX(p.x, plat.x, plat.x + plat.w)) {
+        land(plat);
+        break;
+      }
+    }
+  }
+
+  // 기록 / 카메라
+  p.maxY = Math.max(p.maxY, p.y);
+  state.camBottom = Math.max(state.camBottom, p.y - viewLH * CONFIG.CAM_PLAYER_Y);
+  // 꼭대기 바닥이 화면 아래 1/4 위치보다 더 내려가지 않게
+  state.camBottom = Math.min(state.camBottom, GOAL_Y - viewLH * 0.25);
+
+  // 떨어지는 장면 사진: 화면 아래쪽으로 내려가는 순간 한 번 찍어둠 (게임오버 시 폴라로이드)
+  if (state.phase === 'playing' && state.shotArmed && p.vy < -300 && p.y < state.camBottom + viewLH * 0.28) {
+    state.shotArmed = false;
+    state.wantShot = { wx: p.x, wy: p.y + CONFIG.CHAR_H * 0.2 };
+  }
+
+  // 화면 아래로 완전히 떨어짐
+  if (state.phase === 'playing' && p.y < state.camBottom - CONFIG.CHAR_H) {
+    if (DEV.god) p.vy = CONFIG.SPRING_V;  // 개발용 무적: 튀어오름
+    else endGame('fall');
+  }
+
+  // 꼭대기: 문에 닿으면 결과 표시
+  if (state.summit && state.phase === 'playing') checkDoor();
+
+  // 층 안내 (30층마다)
+  if (state.phase === 'playing') {
+    const floor = floorOf(stairsOf(p.maxY));
+    if (floor % CONFIG.TOAST_FLOOR_STEP === 0 && floor < CONFIG.GOAL_FLOOR && !state.toastsShown[floor]) {
+      state.toastsShown[floor] = true;
+      showFloorToast(floor);
+      spawnConfetti(p.x, p.y + CONFIG.CHAR_H);
+    }
+  }
+
+  // 따라오는 캐릭터용 이동 기록
+  state.history.push({ t: state.now, x: p.x, y: p.y, dir: p.dir, rising: p.vy > 0 });
+  const keepFrom = state.now - (state.followers.length + 1) * CONFIG.FOLLOW_DELAY_MS - 200;
+  while (state.history.length > 2 && state.history[1].t < keepFrom) state.history.shift();
+
+  updateParticles(dt);
+
+  // 지나간 계단 정리 + 새 계단 생성
+  const cutoff = state.camBottom - 200;
+  state.platforms = state.platforms.filter(pl => pl.y > cutoff && pl.alpha > 0);
+  generatePlatforms();
+
+  updateHUD();
+}
+
+/* ─── 렌더 ─── */
+function fillRoundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+  else ctx.rect(x, y, w, h);
+  ctx.fill();
+}
+
+const PIXEL_FONT = '"Galmuri11", "Galmuri9", monospace';
+
+/** 이미지가 있으면 그리고, 없으면 대체 색으로 채움 */
+/** 화면 실제 픽셀 격자에 맞춤 (도트가 반 픽셀에 걸려 뭉개지는 것 방지) */
+function snap(v) {
+  const k = scale * dpr;
+  return Math.round(v * k) / k;
+}
+
+function drawImg(holder, x, y, w, h, fallback) {
+  x = snap(x);
+  y = snap(y);
+  if (holder && holder.ok) {
+    ctx.drawImage(holder.el, x, y, w, h);
+  } else if (fallback) {
+    ctx.fillStyle = fallback;
+    ctx.fillRect(x, y, w, h);
+  }
+}
+
+/** 가로로 타일 반복 (시작 바닥 / 꼭대기) */
+function drawTileRow(holder, x, y, w, tileW, h, fallback) {
+  for (let tx = x; tx < x + w; tx += tileW) {
+    drawImg(holder, tx, y, Math.min(tileW, x + w - tx), h, fallback);
+  }
+}
+
+/** 정수 시드 → 0~1 (같은 높이에는 항상 같은 소품이 나오도록) */
+function hash01(n) {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** 화면 전체 (게임 영역 바깥 포함) */
+function drawBackdrop() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#0b1016';
+  ctx.fillRect(0, 0, viewW, viewH);
+}
+
+/** 계단통로 벽: 낡은 노출 콘크리트 (계단보다 느리게 스크롤) */
+function drawWall() {
+  const W = CONFIG.GAME_W;
+  const PIX = CONFIG.PIX;
+  const wallY = state.camBottom * CONFIG.WALL_PARALLAX;   // 벽 좌표계의 화면 맨 아래
+  const toWallLY = wy => viewLH - (wy - wallY);
+
+  // 콘크리트 타일: 대부분 평범, 가끔 금 간 것 / 철근 드러난 것
+  const T = 32 * PIX;
+  const firstRow = Math.floor(wallY / T);
+  for (let r = firstRow; r * T < wallY + viewLH + T; r++) {
+    const ly = toWallLY((r + 1) * T);
+    for (let c = 0; c * T < W; c++) {
+      const h = hash01(r * 13 + c * 7.3);
+      const tile = h < 0.05 ? IMG.wall_rebar : h < 0.17 ? IMG.wall_crack : IMG.wall;
+      drawImg(tile, c * T, ly, T, T, '#5f5b55');
+    }
+  }
+
+  // 벽에 붙은 얼룩 / 큰 금 (위치는 높이로 고정)
+  const CHUNK = 180;
+  const decals = [['prop_stain', 10, 26], ['prop_crack', 22, 16]];
+  const firstChunk = Math.floor(wallY / CHUNK) - 1;
+  for (let c = firstChunk; c * CHUNK < wallY + viewLH + CHUNK; c++) {
+    if (c < 0 || hash01(c + 0.9) < 0.35) continue;
+    const [name, pw, ph] = decals[Math.floor(hash01(c) * decals.length)];
+    const w = pw * PIX;
+    const h = ph * PIX;
+    const x = 10 + hash01(c + 0.5) * (W - 20 - w);
+    drawImg(IMG[name], x, toWallLY(c * CHUNK + 40 + hash01(c + 0.25) * 100), w, h);
+  }
+
+  // 벽을 어둡게 눌러서 계단/캐릭터가 앞으로 보이게
+  // 시작층은 아주 어둡고, 올라갈수록 조금씩 밝아짐 (꼭대기에서 0.5가 최대 밝기)
+  const climb = Math.min(1, Math.max(0, state.camBottom / GOAL_Y));
+  const dark = CONFIG.WALL_DARK_START + (CONFIG.WALL_DARK_END - CONFIG.WALL_DARK_START) * climb;
+  ctx.fillStyle = `rgba(10, 10, 12, ${dark})`;
+  ctx.fillRect(0, 0, W, viewLH);
+}
+
+/** 10층마다 벽에 페인트로 칠한 층 번호 (낡아서 바랜 느낌) */
+function drawFloorMarks() {
+  ctx.font = `bold 28px "Galmuri14", ${PIXEL_FONT}`;
+  ctx.textBaseline = 'bottom';
+  ctx.textAlign = 'left';
+
+  const stairsPerFloor = CONFIG.GOAL_STAIRS / CONFIG.GOAL_FLOOR;
+  const fromF = Math.max(10, Math.floor(floorOf(stairsOf(state.camBottom)) / 10) * 10);
+  for (let f = fromF; f <= CONFIG.GOAL_FLOOR; f += 10) {
+    const wy = (f - 1) * stairsPerFloor * CONFIG.PX_PER_STAIR;
+    const ly = toLY(wy);
+    if (ly < -40) break;
+    if (ly > viewLH + 40) continue;
+
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = '#e8c547';
+    ctx.fillRect(12, ly - 2, 120, 4);
+    ctx.fillText(`${f}F`, 14, ly - 6);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/** 시작층: 열린 소화전 함 (여기로 들어왔다는 설정) */
+function drawHydrant() {
+  const ly = toLY(state.startY);
+  if (ly < -80 || ly > viewLH + 80) return;
+  const PIX = CONFIG.PIX;
+  const x = CONFIG.HYDRANT_X;
+  const h = 27 * PIX;
+  drawImg(IMG.hydrant_door, x, ly - h, 17 * PIX, h, '#d83a3a');
+  drawImg(IMG.hydrant_leaf, x - 5 * PIX, ly - h, 5 * PIX, h, '#9e2424');
+}
+
+function drawParticles() {
+  for (const pt of state.particles) {
+    const k = pt.life / pt.max;
+    ctx.globalAlpha = pt.drag ? Math.min(1, 1.6 * (1 - k)) : 1 - k;
+    ctx.fillStyle = pt.color;
+    const size = pt.drag ? pt.size * (1 - k * 0.5) : pt.size;
+    ctx.fillRect(Math.round(pt.x - size / 2), Math.round(toLY(pt.y) - size / 2), size, size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawMotes() {
+  ctx.fillStyle = 'rgba(210, 204, 192, 0.35)';
+  for (const m of state.motes) {
+    ctx.fillRect(Math.round(m.x), Math.round(m.y * viewLH), 2.4, 2.4);
+  }
+}
+
+/** 화면 아래쪽은 끝이 안 보이는 어둠 */
+function drawAbyss() {
+  const fade = ctx.createLinearGradient(0, viewLH - 110, 0, viewLH);
+  fade.addColorStop(0, 'rgba(5, 7, 10, 0)');
+  fade.addColorStop(1, 'rgba(5, 7, 10, 0.95)');
+  ctx.fillStyle = fade;
+  ctx.fillRect(0, viewLH - 110, CONFIG.GAME_W, 110);
+}
+
+/** 문 기하 정보: 문틀 안쪽(빛) 범위, 문짝이 붙는 쪽(벽 쪽) */
+function doorGeom(doorX) {
+  const PIX = CONFIG.PIX;
+  const innerL = doorX + 2 * PIX;
+  const innerR = doorX + CONFIG.DOOR_W - 2 * PIX;
+  const hingeRight = doorX + CONFIG.DOOR_W / 2 > CONFIG.GAME_W / 2;  // 오른쪽 문이면 문짝은 오른쪽(벽 쪽)
+  return { innerL, innerR, hingeRight };
+}
+
+function doorOpenAmount() {
+  if (!state.exiting) return CONFIG.DOOR_OPEN;
+  const k = Math.min(1, (state.now - state.exitT) / 300);
+  return CONFIG.DOOR_OPEN + (CONFIG.DOOR_OPEN_EXIT - CONFIG.DOOR_OPEN) * k;
+}
+
+/** 꼭대기 문 (뒤쪽): 은은한 빛 + 문틀 너머 빛 + EXIT 표지판 */
+function drawDoorBack(x, groundLY) {
+  const w = CONFIG.DOOR_W;
+  const h = CONFIG.DOOR_H;
+  const top = groundLY - h;
+  const { innerL, innerR, hingeRight } = doorGeom(x);
+
+  // 문 틈으로 새어 나오는 따뜻한 빛 (천천히 숨쉬듯)
+  const breathe = 0.75 + 0.25 * Math.sin(state.now / 900);
+  const open = 1 - doorOpenAmount();
+  const gapCX = hingeRight ? innerL + (innerR - innerL) * open / 2 : innerR - (innerR - innerL) * open / 2;
+  const glow = ctx.createRadialGradient(gapCX, top + h * 0.55, 4, gapCX, top + h * 0.55, 110);
+  glow.addColorStop(0, `rgba(255, 228, 160, ${(0.22 + open * 0.25) * breathe})`);
+  glow.addColorStop(1, 'rgba(255, 228, 160, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(gapCX - 110, top - 60, 220, h + 120);
+
+  // 바닥에 비친 빛
+  const spillDir = hingeRight ? -1 : 1;
+  const spill = ctx.createLinearGradient(gapCX, 0, gapCX + spillDir * 90, 0);
+  spill.addColorStop(0, `rgba(255, 236, 180, ${0.3 * breathe})`);
+  spill.addColorStop(1, 'rgba(255, 236, 180, 0)');
+  ctx.fillStyle = spill;
+  ctx.fillRect(Math.min(gapCX, gapCX + spillDir * 90), groundLY - 3, 90, 5);
+
+  drawImg(IMG.door_frame, x, top, w, h, '#fff1c2');
+
+  // 초록 EXIT 표지판
+  const sw = 19 * CONFIG.PIX;
+  const sh = 9 * CONFIG.PIX;
+  const sx = x + w / 2 - sw / 2;
+  const sy = top - sh - 8;
+  const sg = ctx.createRadialGradient(sx + sw / 2, sy + sh / 2, 4, sx + sw / 2, sy + sh / 2, 60);
+  sg.addColorStop(0, 'rgba(43, 212, 125, 0.25)');
+  sg.addColorStop(1, 'rgba(43, 212, 125, 0)');
+  ctx.fillStyle = sg;
+  ctx.fillRect(sx - 60, sy - 60, sw + 120, sh + 120);
+  drawImg(IMG.exit_sign, sx, sy, sw, sh, '#2bd47d');
+}
+
+/** 꼭대기 문 (앞쪽): 살짝 열린 문짝. 캐릭터보다 위에 그려서 지나가면 문 뒤로 사라짐 */
+function drawDoorFront(x, groundLY) {
+  const PIX = CONFIG.PIX;
+  const { innerL, innerR, hingeRight } = doorGeom(x);
+  const fullW = innerR - innerL;
+  const lw = Math.max(PIX, fullW * doorOpenAmount());
+  const lx = hingeRight ? innerR - lw : innerL;
+  drawImg(IMG.door_leaf, lx, groundLY - CONFIG.DOOR_H + PIX, lw, 25 * PIX, '#6e7378');
+}
+
+const STAIR_IMG = {
+  normal: 'stair_normal',
+  moving: 'stair_moving',
+  crumble: 'stair_crumble',
+};
+const STAIR_FALLBACK = {
+  normal: '#a9b6c4', moving: '#f2c230', crumble: '#9c5530', floor: '#6f7e8f', goal: '#ffd23f',
+};
+
+/** 계단 이미지(30px)를 너비에 맞게 잘라서 그림: 왼쪽 부분 + 오른쪽 끝 4px (늘이지 않아서 도트가 안 뭉개짐) */
+function drawStair(holder, x, y, w, fallback) {
+  const PIX = CONFIG.PIX;
+  x = snap(x);
+  y = snap(y);
+  const h = CONFIG.PLAT_H;
+  if (!holder || !holder.ok) {
+    ctx.fillStyle = fallback;
+    ctx.fillRect(x, y, w, h);
+    return;
+  }
+  const srcW = Math.min(30, Math.round(w / PIX));
+  if (srcW >= 30) {
+    ctx.drawImage(holder.el, x, y, w, h);
+    return;
+  }
+  const edge = 4;
+  ctx.drawImage(holder.el, 0, 0, srcW - edge, 6, x, y, (srcW - edge) * PIX, h);
+  ctx.drawImage(holder.el, 30 - edge, 0, edge, 6, x + (srcW - edge) * PIX, y, edge * PIX, h);
+}
+
+function drawPlatforms() {
+  const PIX = CONFIG.PIX;
+  for (const plat of state.platforms) {
+    const ly = toLY(plat.y);
+    if (ly < -40 || ly > viewLH + 40) continue;
+
+    ctx.globalAlpha = plat.alpha;
+    if (plat.type === 'floor' || plat.type === 'goal') {
+      const tile = plat.type === 'floor' ? IMG.floor_tile : IMG.goal_tile;
+      drawTileRow(tile, plat.x, ly, plat.w, 16 * PIX, CONFIG.PLAT_H, STAIR_FALLBACK[plat.type]);
+    } else {
+      // 무너지는 중엔 살짝 흔들림
+      const shake = plat.crumbling ? Math.sin(state.now / 20) * 1.5 : 0;
+      drawStair(IMG[STAIR_IMG[plat.type]], plat.x + shake, ly, plat.w, STAIR_FALLBACK[plat.type]);
+    }
+
+    // 스프링
+    if (plat.spring) {
+      const used = state.now - plat.spring.usedT < 180;
+      const sx = plat.x + plat.spring.ox;
+      const sh = (used ? 7 : 11) * PIX;
+      drawImg(used ? IMG.spring_on : IMG.spring, sx, ly - sh, CONFIG.SPRING_W, sh, '#ff6b6b');
+    }
+
+    if (plat.type === 'goal') {
+      ctx.fillStyle = '#ffd23f';
+      ctx.font = `bold 14px ${PIXEL_FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`${CONFIG.GOAL_FLOOR}층 · 꼭대기`, CONFIG.GAME_W / 2, ly + CONFIG.PLAT_H + 8);
+      drawDoorBack(plat.doorX, ly);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawCharacterAt(ch, lx, ly, dir, rising) {
+  const w = CONFIG.CHAR_W;
+  const h = CONFIG.CHAR_H;
+  const pose = `${dir < 0 ? 'left' : 'right'}_${rising ? 'jump' : 'stand'}`;
+  const holder = ch.sprites[pose];
+
+  ctx.save();
+  ctx.translate(snap(lx), snap(ly));
+
+  if (holder.ok) {
+    ctx.drawImage(holder.el, -w / 2, -h, w, h);
+    ctx.restore();
+    return;
+  }
+
+  // 이미지 없을 때 폴백
+  ctx.fillStyle = ch.color;
+  fillRoundRect(-w / 2 + 4, -h + 6, w - 8, h - 6, 10);
+  ctx.fillStyle = '#0d1117';
+  ctx.beginPath();
+  ctx.arc(dir * 8, -h + 22, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(13, 17, 23, 0.75)';
+  ctx.font = `bold 13px ${PIXEL_FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(ch.name.charAt(0), 0, -12);
+  ctx.restore();
+}
+
+function drawCharacter(ch, wx, wy, dir, rising) {
+  drawCharacterAt(ch, wx, toLY(wy), dir, rising);
+}
+
+/**
+ * 문 밖으로 나가는 중인 k번째 캐릭터(0 = 메인) 위치. 아직 차례가 아니면 null
+ * 문틀 안쪽 빛 속으로 옆으로 미끄러져 들어가고, 반대편 문틀 너머는 잘려서 안 보임
+ */
+function exitPose(k) {
+  if (!state.exiting) return null;
+  const t = state.now - (state.exitT + k * CONFIG.FOLLOW_DELAY_MS);
+  if (t < 0) return null;
+  const s = Math.min(1, t / CONFIG.EXIT_SLIDE_MS);
+  const e = s * s;  // 천천히 출발해서 빨라짐
+  const { x0, y0, dir, endX } = state.exitPath;
+  return {
+    x: x0 + (endX - x0) * e,
+    y: y0 + (state.door.y - y0) * Math.min(1, s * 3),
+    dir,
+    done: s >= 1,
+  };
+}
+
+function sampleHistory(t) {
+  const h = state.history;
+  for (let i = h.length - 1; i >= 0; i--) {
+    if (h[i].t <= t) return h[i];
+  }
+  return h[0];
+}
+
+function drawCharacters() {
+  const p = state.player;
+  const exiting = state.exiting;
+
+  // 나가는 중엔 문틀 바깥쪽 끝 너머를 잘라냄
+  if (exiting) {
+    const { clipX, dir } = state.exitPath;
+    ctx.save();
+    ctx.beginPath();
+    if (dir > 0) ctx.rect(0, 0, clipX, viewLH);
+    else ctx.rect(clipX, 0, CONFIG.GAME_W - clipX, viewLH);
+    ctx.clip();
+  }
+
+  // 따라오는 캐릭터: 메인캐릭터 궤적을 시간차로 재생 (멀리 있는 캐릭터부터)
+  for (let k = state.followers.length; k >= 1; k--) {
+    const ch = state.followers[k - 1].ch;
+    const ex = exitPose(k);
+    if (ex) {
+      if (!ex.done) drawCharacter(ch, ex.x, ex.y, ex.dir, false);
+    } else if (state.history.length) {
+      const s = sampleHistory(state.now - k * CONFIG.FOLLOW_DELAY_MS);
+      drawCharacter(ch, s.x, s.y, s.dir, s.rising);
+    } else {
+      // 시작 전: 메인캐릭터 뒤에 겹쳐서 서 있음
+      drawCharacter(ch, p.x - p.dir * k * 8, p.y, p.dir, false);
+    }
+  }
+
+  const main = getCharacter(state.selectedChar);
+  const ex0 = exitPose(0);
+  if (ex0) {
+    if (!ex0.done) drawCharacter(main, ex0.x, ex0.y, ex0.dir, false);
+  } else {
+    const rising = state.phase !== 'title' && p.vy > 0;
+    drawCharacter(main, p.x, p.y, p.dir, rising);
+  }
+
+  if (exiting) ctx.restore();
+
+  // 문짝은 캐릭터 위에 (문 뒤로 지나가는 느낌)
+  const goal = state.platforms.find(pl => pl.type === 'goal');
+  if (goal) {
+    const ly = toLY(goal.y);
+    if (ly > -40 && ly < viewLH + 120) drawDoorFront(goal.doorX, ly);
+  }
+}
+
+function render() {
+  drawBackdrop();
+
+  // 게임 영역 좌표계로 전환 + 영역 밖은 잘라냄
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * offX, 0);
+  ctx.imageSmoothingEnabled = false;  // 픽셀아트 선명하게
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, CONFIG.GAME_W, viewLH);
+  ctx.clip();
+
+  drawWall();
+  drawFloorMarks();
+  drawHydrant();
+  drawPlatforms();
+  drawCharacters();
+  drawParticles();
+  drawMotes();
+  drawAbyss();
+
+  ctx.restore();
+  if (state.wantShot) takeShot();
+}
+
+/* ─── 사진 (결과 화면 폴라로이드) ─── */
+const shotBuffer = document.createElement('canvas');
+
+function takeShot() {
+  const { wx, wy } = state.wantShot;
+  state.wantShot = null;
+  shotBuffer.width = canvas.width;
+  shotBuffer.height = canvas.height;
+  shotBuffer.getContext('2d').drawImage(canvas, 0, 0);
+  state.shot = {
+    cx: (offX + wx * scale) * dpr,
+    cy: toLY(wy) * scale * dpr,
+  };
+}
+
+/** 찍어둔 장면에서 캐릭터 주변을 정사각형으로 잘라 폴라로이드에 그림 */
+function developPhoto() {
+  const pctx = photoCanvas.getContext('2d');
+  pctx.imageSmoothingEnabled = false;
+  pctx.fillStyle = '#2a2826';
+  pctx.fillRect(0, 0, photoCanvas.width, photoCanvas.height);
+
+  let src = shotBuffer;
+  let shot = state.shot;
+  if (!shot) {  // 찍어둔 사진이 없으면 지금 화면
+    src = canvas;
+    shot = { cx: (offX + state.player.x * scale) * dpr, cy: viewH * 0.5 * dpr };
+  }
+  // 화면 픽셀을 1:1로 잘라옴 (확대/축소 없이 → 도트가 화면에서 보던 그대로)
+  const size = Math.min(src.width, src.height, Math.round(CONFIG.PHOTO_SIZE * dpr));
+  const sx = Math.round(Math.max(0, Math.min(src.width - size, shot.cx - size / 2)));
+  const sy = Math.round(Math.max(0, Math.min(src.height - size, shot.cy - size / 2)));
+  photoCanvas.width = size;
+  photoCanvas.height = size;
+  pctx.imageSmoothingEnabled = false;
+  pctx.drawImage(src, sx, sy, size, size, 0, 0, size, size);
+}
+
+/* ─── 결과 이미지 저장 / 공유 (외부 API 없이 브라우저 기능만 사용) ─── */
+let shareBlob = null;
+
+/**
+ * 결과 화면(태블릿)과 같은 모양으로 이미지 한 장을 그림 — 버튼만 빼고 아래에 게임 이름 한 줄
+ * 수치는 style.css의 태블릿/폴라로이드 값과 맞춰 둠 (2배 해상도)
+ */
+function prepareShareImage(info) {
+  shareBlob = null;
+  const S = dpr * Math.max(1, Math.round(2 / dpr));  // 해상도 배율 (사진이 1:1 또는 정수배가 되도록)
+  const INK = '#141a22';
+  const FONT = '"Galmuri11", "Galmuri9", monospace';
+  const FONT_BIG = '"Galmuri14", "Galmuri11", monospace';
+  const rows = [...document.querySelectorAll('.record_list li')].map(li => [
+    li.querySelector('.record_key').textContent,
+    li.querySelector('.record_val').textContent,
+  ]);
+
+  // ── 레이아웃 (CSS px 기준) ──
+  const OUT = 4;                    // 태블릿 바깥 검은 테두리
+  const TABLET_W = 340;
+  const BEZEL = 14;
+  const SCREEN_W = TABLET_W - BEZEL * 2;
+  const PAD_X = 16;
+  const PAD_TOP = 18;
+  const PH = CONFIG.PHOTO_SIZE;
+  const POL_W = PH + 16;
+  const POL_H = 8 + PH + 32;
+  const ROW_H = 27;
+  const LIST_W = SCREEN_W - PAD_X * 2 - 4;
+
+  let y = PAD_TOP + 10;             // 테이프 높이만큼 여유
+  const polTop = y;
+  y += POL_H + 16;
+  const bestY = y;
+  if (info.isNewBest) y += 18 + 12;
+  const PROF_H = 80 + 16;
+  const profTop = y;
+  y += PROF_H + 10;
+  const listTop = y;
+  y += rows.length * ROW_H + (rows.length - 1) * 2;
+  const footY = y + 22;
+  const SCREEN_H = footY + 16;
+  const W = (TABLET_W + OUT * 2) * S;
+  const H = (SCREEN_H + BEZEL * 2 + OUT * 2) * S;
+
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.scale(S, S);
+
+  // 태블릿 베젤
+  g.fillStyle = INK;
+  g.fillRect(OUT, 0, TABLET_W, SCREEN_H + BEZEL * 2 + OUT * 2);
+  g.fillRect(0, OUT, TABLET_W + OUT * 2, SCREEN_H + BEZEL * 2);
+  g.fillStyle = '#2b3038';
+  g.fillRect(OUT, OUT, TABLET_W, SCREEN_H + BEZEL * 2);
+  g.fillStyle = '#3d444e';
+  g.fillRect(OUT, OUT, TABLET_W, 4);
+  g.fillStyle = '#1f2329';
+  g.fillRect(OUT, OUT + SCREEN_H + BEZEL * 2 - 4, TABLET_W, 4);
+
+  // 화면
+  const sx = OUT + BEZEL;
+  const sy = OUT + BEZEL;
+  g.fillStyle = '#11151a';
+  g.fillRect(sx - 3, sy - 3, SCREEN_W + 6, SCREEN_H + 6);
+  g.fillStyle = '#eef3f0';
+  g.fillRect(sx, sy, SCREEN_W, SCREEN_H);
+  g.save();
+  g.translate(sx, sy);
+  const cx = SCREEN_W / 2;
+
+  // 폴라로이드 (사진은 기울이지 않음 — 도트 보존)
+  g.save();
+  g.translate(Math.round(cx), Math.round(polTop + POL_H / 2));
+  const px0 = -POL_W / 2;
+  const py0 = -POL_H / 2;
+  g.fillStyle = 'rgba(20, 26, 34, 0.25)';
+  g.fillRect(px0 + 4, py0 + 5, POL_W, POL_H);
+  g.fillStyle = INK;
+  g.fillRect(px0 - 2, py0 - 2, POL_W + 4, POL_H + 4);
+  g.fillStyle = '#fffdf7';
+  g.fillRect(px0, py0, POL_W, POL_H);
+  g.fillStyle = INK;
+  g.fillRect(px0 + 6, py0 + 6, PH + 4, PH + 4);
+  g.drawImage(photoCanvas, px0 + 8, py0 + 8, PH, PH);
+  g.fillStyle = INK;
+  g.font = `11px ${FONT}`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(info.caption, 0, py0 + 8 + PH + 16);
+  // 테이프 (+4도)
+  g.save();
+  g.translate(0, py0 - 1);
+  g.rotate(4 * Math.PI / 180);
+  g.fillStyle = 'rgba(255, 210, 63, 0.75)';
+  g.fillRect(-28, -8, 56, 16);
+  g.restore();
+  // 층수 스티커 (폴라로이드 기준 오른쪽 아래, +8도)
+  g.font = `bold 28px ${FONT_BIG}`;
+  const label = `${info.floor}층!`;
+  const tw = g.measureText(label).width;
+  const stW = tw + 24;
+  const stH = 28 + 14;
+  g.save();
+  g.translate(POL_W / 2 + 10 - stW / 2, POL_H / 2 - 48 - stH / 2);
+  g.rotate(8 * Math.PI / 180);
+  g.fillStyle = 'rgba(20, 26, 34, 0.3)';
+  g.fillRect(-stW / 2, -stH / 2, stW + 6, stH + 6);
+  g.fillStyle = INK;
+  g.fillRect(-stW / 2 - 3, -stH / 2 - 3, stW + 6, stH + 6);
+  g.fillStyle = info.cleared ? '#3cb894' : '#d9607f';
+  g.fillRect(-stW / 2, -stH / 2, stW, stH);
+  g.fillStyle = 'rgba(20, 26, 34, 0.35)';
+  g.fillText(label, 2, 3);
+  g.fillStyle = '#fff';
+  g.fillText(label, 0, 1);
+  g.restore();
+  g.restore();
+
+  // 최고 기록
+  if (info.isNewBest) {
+    g.fillStyle = '#d9607f';
+    g.font = `bold 14px ${FONT_BIG}`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('★ 최고 기록 ★', cx, bestY + 5);
+  }
+
+  // 프로필 (선택한 캐릭터 왼쪽 스탠드 도트)
+  const lx = PAD_X + 2;
+  g.fillStyle = '#c9d3cf';
+  g.fillRect(lx - 2, profTop - 2, LIST_W + 4, PROF_H + 4);
+  g.fillStyle = '#fff';
+  g.fillRect(lx, profTop, LIST_W, PROF_H);
+  const picX = lx + 10;
+  const picY = profTop + 8;
+  g.fillStyle = INK;
+  g.fillRect(picX - 2, picY - 2, 60, 84);
+  g.fillStyle = '#ffd23f';
+  g.fillRect(picX, picY, 56, 80);
+  const pic = getCharacter(state.selectedChar).sprites.left_stand;
+  if (pic && pic.ok) g.drawImage(pic.el, picX + 4, picY + 8, 48, 72);  // 16×24 의 3배
+  g.textAlign = 'left';
+  g.textBaseline = 'middle';
+  g.fillStyle = INK;
+  g.font = `bold 14px ${FONT_BIG}`;
+  g.fillText(recName.textContent, picX + 70, picY + 30);
+  g.fillStyle = '#6b7484';
+  g.font = `11px ${FONT}`;
+  g.fillText(recChar.textContent, picX + 70, picY + 52);
+
+  // 기록 목록
+  const listH = rows.length * ROW_H + (rows.length - 1) * 2;
+  g.fillStyle = '#c9d3cf';
+  g.fillRect(lx - 2, listTop - 2, LIST_W + 4, listH + 4);
+  g.fillStyle = '#fff';
+  g.fillRect(lx, listTop, LIST_W, listH);
+  g.font = `11px ${FONT}`;
+  g.textBaseline = 'middle';
+  rows.forEach(([k, v], i) => {
+    const ry = listTop + i * (ROW_H + 2);
+    if (i > 0) {
+      g.fillStyle = '#d5ddd9';
+      for (let dx = 0; dx < LIST_W; dx += 4) g.fillRect(lx + dx, ry - 2, 2, 2);
+    }
+    g.textAlign = 'left';
+    g.fillStyle = '#6b7484';
+    g.fillText(k, lx + 10, ry + ROW_H / 2);
+    g.textAlign = 'right';
+    g.fillStyle = INK;
+    g.font = `bold 11px ${FONT}`;
+    g.fillText(v, lx + LIST_W - 10, ry + ROW_H / 2);
+    g.font = `11px ${FONT}`;
+  });
+
+  // 게임 이름
+  g.textAlign = 'center';
+  g.fillStyle = '#6b7484';
+  g.fillText('끝없는 계단 · 어두운 바다의 등불이 되어 팬게임', cx, footY);
+  g.restore();
+
+  try {
+    c.toBlob(blob => { shareBlob = blob; }, 'image/png');
+  } catch (err) {
+    // 파일을 직접 열었을 때(file://)는 브라우저 보안상 저장 불가. Live Server / GitHub Pages에선 정상
+    if (location.protocol !== 'file:') console.warn('결과 이미지 생성 실패:', err);
+  }
+}
+
+/** 모바일: 공유 시트(카톡, 인스타 등) / PC: PNG 다운로드 */
+async function saveOrShare() {
+  if (!shareBlob) {
+    showToast(location.protocol === 'file:'
+      ? '파일로 직접 열면 저장이 안 돼요 (Live Server로 열기)'
+      : '이미지를 만드는 중이에요. 잠시 후 다시 눌러주세요', CONFIG.TOAST_MS);
+    return;
+  }
+  const file = new File([shareBlob], `endless-stairs-${Date.now()}.png`, { type: 'image/png' });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: '끝없는 계단' });
+      return;
+    }
+  } catch (err) {
+    if (err && err.name === 'AbortError') return;  // 공유 취소
+  }
+  const url = URL.createObjectURL(shareBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ─── 메인 루프 (타이틀 화면에서도 배경으로 계속 그림) ─── */
+function loop(ts) {
+  if (state.lastTs === null) state.lastTs = ts;
+  const dtMs = Math.min(33, ts - state.lastTs);
+  state.lastTs = ts;
+  state.now += dtMs;
+
+  // 설정 화면에서는 멈춘 상태로 그리기만 함 (게임 시작 버튼을 눌러야 움직임)
+  if (state.phase !== 'title') update(dtMs / 1000);
+  render();
+  requestAnimationFrame(loop);
+}
+
+/* ─── HUD ─── */
+function setText(el, key, value) {
+  if (state.hudCache[key] === value) return false;
+  state.hudCache[key] = value;
+  el.textContent = value;
+  return true;
+}
+
+function updateHUD() {
+  const s = stairsOf(state.player.maxY);
+  if (setText(floorDisplay, 'floor', `${floorOf(s)}층`) && state.phase === 'playing') {
+    floorDisplay.classList.remove('bump');
+    void floorDisplay.offsetWidth;
+    floorDisplay.classList.add('bump');
+  }
+  setText(stairsDisplay, 'stairs', `${s}/${CONFIG.GOAL_STAIRS}`);
+  setText(timeDisplay, 'time', formatClock(state.elapsed));
+}
+
+let toastTimer = null;
+
+/** 층 통과 팝업: 큰 숫자 + 반짝이 + 튀어나오는 효과 */
+function showFloorToast(floor) {
+  toastEl.classList.remove('visible', 'floor');
+  toastEl.innerHTML = '';
+  const big = document.createElement('b');
+  big.className = 'toast_big';
+  big.textContent = `${floor}층!`;
+  const l = document.createElement('i');
+  l.className = 'toast_spark l';
+  l.textContent = '✦';
+  const r = document.createElement('i');
+  r.className = 'toast_spark r';
+  r.textContent = '✦';
+  toastEl.append(l, big, r);
+  void toastEl.offsetWidth;  // 애니메이션 다시 시작
+  toastEl.classList.add('floor', 'visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('visible'), CONFIG.TOAST_MS);
+}
+function showToast(text, duration = 1800) {
+  toastEl.classList.remove('floor');
+  toastEl.textContent = text;
+  toastEl.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('visible'), duration);
+}
+
+/* ─── 게임 흐름 ─── */
+function startGame() {
+  resetGame();
+  state.phase = 'playing';
+  startScreen.classList.add('hidden');
+  gameoverScreen.classList.add('hidden');
+  hudEl.classList.remove('hidden');
+  touchControls.classList.remove('hidden');
+}
+
+/* ─── 꼭대기 ─── */
+function reachSummit(plat) {
+  state.summit = true;
+  state.summitTimeMs = Math.round(state.elapsed);
+  state.door = { x: plat.doorX, y: plat.y };
+  showToast('꼭대기 도착! 문으로 가자', CONFIG.TOAST_MS);
+}
+
+function checkDoor() {
+  const p = state.player;
+  const d = state.door;
+  const hw = CONFIG.HITBOX_W / 2;
+  const inX = p.x + hw > d.x && p.x - hw < d.x + CONFIG.DOOR_W;
+  const inY = p.y < d.y + CONFIG.DOOR_H;
+  if (inX && inY) {
+    // 메인캐릭터부터 문 밖으로 미끄러져 나감 → 따라오는 캐릭터도 같은 지점에 도착하는 순서대로 나감
+    const { innerL, innerR } = doorGeom(d.x);
+    const dir = p.x < (innerL + innerR) / 2 ? 1 : -1;   // 다가온 방향으로 계속 진행
+    const clipX = dir > 0 ? innerR : innerL;              // 반대편 문틀 안쪽 끝
+    state.exitPath = {
+      x0: p.x,
+      y0: p.y,
+      dir,
+      clipX,
+      endX: clipX + dir * (CONFIG.CHAR_W / 2 + 2),
+    };
+    state.exiting = true;
+    state.exitShotTaken = false;
+    state.exitT = state.now;
+    state.cleared = true;
+    state.keys.left = false;
+    state.keys.right = false;
+    touchControls.classList.add('hidden');
+  }
+}
+
+function endGame(reason) {
+  if (state.phase !== 'playing') return;
+  state.phase = 'over';
+  state.keys.left = false;
+  state.keys.right = false;
+  touchControls.classList.add('hidden');
+
+  const cleared = reason === 'clear';
+  const result = {
+    stairs: cleared ? CONFIG.GOAL_STAIRS : stairsOf(state.player.maxY),
+    timeMs: cleared ? state.summitTimeMs : Math.round(state.elapsed),  // 기록은 꼭대기 도착 시점
+  };
+
+  const prevBest = loadBest();
+  const isNewBest = isBetter(result, prevBest);
+  const best = isNewBest ? result : prevBest;
+  if (isNewBest) storage.set(STORAGE_KEYS.best + CONFIG.DIFFICULTY, JSON.stringify(result));
+
+  const nickname = storage.get(STORAGE_KEYS.nickname, '') || '이름없음';
+  const tag = getPlayerTag();
+  const now = new Date();
+  const h12 = now.getHours() % 12 || 12;
+  const ampm = now.getHours() < 12 ? 'AM' : 'PM';
+  const time = `${String(h12).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}${ampm}`;
+  const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+
+  photoStamp.classList.toggle('fail', !cleared);
+  gameoverSub.textContent = isNewBest ? '★ 최고 기록 ★' : '';
+  gameoverSub.classList.toggle('hidden', !isNewBest);
+  photoStamp.textContent = `${floorOf(result.stairs)}층!`;
+
+  recName.textContent = `${nickname}#${tag}`;
+  recChar.textContent = getCharacter(state.selectedChar).name;
+  profileImg.src = spritePath(getCharacter(state.selectedChar), 'left_stand');
+  recMode.textContent = `${CONFIG.DIFFICULTY} · ${DIFFICULTY_NAMES[CONFIG.DIFFICULTY]}`;
+  recStairs.textContent = `${result.stairs.toLocaleString()} / ${CONFIG.GOAL_STAIRS.toLocaleString()}`;
+  recTime.textContent = formatRecord(result.timeMs);
+  recBest.textContent = formatResult(best);
+  photoCaption.textContent = `${getCharacter(state.selectedChar).name} · ${date} ${time}`;
+  developPhoto();
+  prepareShareImage({
+    floor: floorOf(result.stairs),
+    cleared,
+    isNewBest,
+    caption: photoCaption.textContent,
+  });
+
+  // [DB] 2차 작업: 여기서 랭킹 등록 (닉네임#태그, 캐릭터, stairs, timeMs)
+  //      정렬: stairs DESC, time_ms ASC
+
+  // 문 통과 → 결과 표시 (엔딩 연출은 나중에 여기에)
+  setTimeout(() => gameoverScreen.classList.remove('hidden'), cleared ? 200 : 600);
+}
+
+function goToTitle() {
+  state.phase = 'title';
+  resetGame(true);
+  gameoverScreen.classList.add('hidden');
+  hudEl.classList.add('hidden');
+  touchControls.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+}
+
+/* ─── 설정 화면 ─── */
+function buildCharGrid() {
+  charGrid.innerHTML = '';
+  CHARACTERS.forEach(ch => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'char_card';
+    btn.dataset.id = ch.id;
+
+    const thumb = document.createElement('span');
+    thumb.className = 'char_thumb';
+    thumb.style.setProperty('--char_color', ch.color);
+    thumb.textContent = ch.name.charAt(0);
+
+    const img = document.createElement('img');
+    img.alt = '';
+    img.onload = () => thumb.classList.add('has_img');
+    img.onerror = () => img.remove();
+    img.src = spritePath(ch, 'right_stand');
+    thumb.appendChild(img);
+
+    const name = document.createElement('span');
+    name.className = 'char_name';
+    name.textContent = ch.name;
+
+    btn.append(thumb, name);
+    btn.addEventListener('click', () => selectCharacter(ch.id));
+    charGrid.appendChild(btn);
+  });
+}
+
+function selectCharacter(id) {
+  state.selectedChar = getCharacter(id).id;
+  charGrid.querySelectorAll('.char_card').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id === state.selectedChar);
+  });
+  resetGame(true); // 타이틀 배경에도 선택한 캐릭터 반영 (계단 배치는 고정)
+}
+
+function buildDiffGrid() {
+  diffGrid.innerHTML = '';
+  Object.keys(DIFFICULTY_PRESETS).forEach(key => {
+    const level = Number(key);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'diff_btn';
+    btn.dataset.level = level;
+    btn.innerHTML = `<b>${level}</b>${DIFFICULTY_NAMES[level]}`;
+    btn.addEventListener('click', () => selectDifficulty(level));
+    diffGrid.appendChild(btn);
+  });
+}
+
+function selectDifficulty(level) {
+  applyDifficulty(level);
+  storage.set(STORAGE_KEYS.diff, String(CONFIG.DIFFICULTY));
+  diffGrid.querySelectorAll('.diff_btn').forEach(el => {
+    el.classList.toggle('selected', Number(el.dataset.level) === CONFIG.DIFFICULTY);
+  });
+  diffHint.textContent = DIFFICULTY_HINTS[CONFIG.DIFFICULTY];
+  resetGame(true);
+}
+
+function handleStart() {
+  const nickname = nicknameInput.value.trim();
+  if (nickname.length < 1 || nickname.length > 12) {
+    startError.textContent = '닉네임은 1~12자로 입력해주세요.';
+    return;
+  }
+  if (nickname.includes('#')) {
+    startError.textContent = '닉네임에 # 은 사용할 수 없어요.';
+    return;
+  }
+  startError.textContent = '';
+  storage.set(STORAGE_KEYS.nickname, nickname);
+  storage.set(STORAGE_KEYS.char, state.selectedChar);
+  nicknameInput.blur();
+  startGame();
+}
+
+/* ─── 이벤트 바인딩 ─── */
+startBtn.addEventListener('click', handleStart);
+restartBtn.addEventListener('click', startGame);
+titleBtn.addEventListener('click', goToTitle);
+saveBtn.addEventListener('click', saveOrShare);
+
+nicknameInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleStart();
+});
+
+// 키보드: ← / → (또는 A / D) 누르고 있는 동안 이동
+const KEY_MAP = { ArrowLeft: 'left', ArrowRight: 'right', a: 'left', d: 'right', A: 'left', D: 'right' };
+
+document.addEventListener('keydown', e => {
+  if (state.phase !== 'playing') return;
+  const k = KEY_MAP[e.key];
+  if (!k) return;
+  e.preventDefault();
+  state.keys[k] = true;
+});
+
+document.addEventListener('keyup', e => {
+  const k = KEY_MAP[e.key];
+  if (k) state.keys[k] = false;
+});
+
+window.addEventListener('blur', () => {
+  state.keys.left = false;
+  state.keys.right = false;
+});
+
+// 터치: 화면 왼쪽 / 오른쪽 누르고 있는 동안 이동
+function bindTouch(btn, key) {
+  const on = e => { e.preventDefault(); state.keys[key] = true; };
+  const off = () => { state.keys[key] = false; };
+  btn.addEventListener('pointerdown', on);
+  btn.addEventListener('pointerup', off);
+  btn.addEventListener('pointercancel', off);
+  btn.addEventListener('pointerleave', off);
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+}
+bindTouch(touchLeft, 'left');
+bindTouch(touchRight, 'right');
+
+window.addEventListener('resize', resizeCanvas);
+
+/* ─── 초기화 ─── */
+resizeCanvas();
+nicknameInput.value = storage.get(STORAGE_KEYS.nickname, '');
+playerTagEl.textContent = `#${getPlayerTag()}`;
+buildCharGrid();
+buildDiffGrid();
+selectDifficulty(Number(storage.get(STORAGE_KEYS.diff, CONFIG.DIFFICULTY)));
+selectCharacter(storage.get(STORAGE_KEYS.char, CHARACTERS[0].id));
+requestAnimationFrame(loop);

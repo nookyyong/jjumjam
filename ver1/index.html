@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>끝없는 계단 (가제)</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="game_wrapper" id="gameWrapper">
+      <!-- 계단 + 캐릭터 + 배경 -->
+      <canvas class="game_canvas" id="gameCanvas"></canvas>
+
+      <!-- 바다 (타자게임 물 애니메이션 재사용) -->
+      <div class="ocean" id="ocean"></div>
+
+      <!-- HUD -->
+      <div class="hud hidden" id="hud">
+        <div class="hud_item">
+          <span class="hud_label">층</span>
+          <span class="hud_value" id="floorDisplay">1층</span>
+        </div>
+        <div class="hud_item">
+          <span class="hud_label">계단</span>
+          <span class="hud_value" id="stairsDisplay">0/4800</span>
+        </div>
+        <div class="hud_item">
+          <span class="hud_label">시간</span>
+          <span class="hud_value" id="timeDisplay">0:00</span>
+        </div>
+      </div>
+
+      <!-- 안내 메시지 -->
+      <div class="toast" id="toast"></div>
+
+      <!-- 터치 조작 (터치 기기에서만 표시, 누르고 있는 동안 이동) -->
+      <div class="touch_controls hidden" id="touchControls">
+        <button type="button" class="touch_btn" id="touchLeft">◀</button>
+        <button type="button" class="touch_btn" id="touchRight">▶</button>
+      </div>
+
+      <!-- 시작(설정) 화면 -->
+      <div class="start_screen" id="startScreen">
+        <div class="start_card">
+          <p class="start_eyebrow">어두운 바다의 등불이 되어 팬게임</p>
+          <h1 class="start_title">끝없는 계단</h1>
+          <p class="start_desc">
+            난간 없는 계단을 밟고 뛰어올라<br />
+            4800계단 꼭대기까지 오르세요.
+          </p>
+
+          <div class="setting_block">
+            <label class="setting_label" for="nicknameInput">닉네임</label>
+            <div class="nickname_row">
+              <input
+                type="text"
+                id="nicknameInput"
+                class="nickname_input"
+                maxlength="12"
+                placeholder="1~12자"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <span class="player_tag" id="playerTag">#0000</span>
+            </div>
+          </div>
+
+          <div class="setting_block">
+            <span class="setting_label">캐릭터</span>
+            <div class="char_grid" id="charGrid"></div>
+            <p class="setting_hint">선택하지 않은 캐릭터는 뒤를 따라옵니다</p>
+          </div>
+
+          <div class="start_instructions">
+            <div class="instruction_item">⌨️ PC: ← / → 키를 누르고 있으면 이동</div>
+            <div class="instruction_item">📱 모바일: 화면 왼쪽 / 오른쪽을 누르고 있기</div>
+            <div class="instruction_item">🌊 계단을 놓쳐 바다에 빠지면 끝</div>
+          </div>
+
+          <p class="start_error" id="startError"></p>
+          <button type="button" class="start_btn" id="startBtn">오르기 시작</button>
+        </div>
+      </div>
+
+      <!-- 게임 오버 화면 -->
+      <div class="gameover_screen hidden" id="gameoverScreen">
+        <div class="gameover_card">
+          <h2 class="gameover_title" id="gameoverTitle">바다에 빠졌다</h2>
+          <p class="gameover_sub" id="gameoverSub"></p>
+          <div class="gameover_stats">
+            <div class="gameover_stat">
+              <span class="gameover_stat_label">층</span>
+              <span class="gameover_stat_val" id="finalFloor">1층</span>
+            </div>
+            <div class="gameover_stat">
+              <span class="gameover_stat_label">계단</span>
+              <span class="gameover_stat_val" id="finalStairs">0</span>
+            </div>
+            <div class="gameover_stat">
+              <span class="gameover_stat_label">최고</span>
+              <span class="gameover_stat_val" id="finalBest">0</span>
+            </div>
+          </div>
+          <!-- [DB] 랭킹 등록 / 랭킹 목록 영역 (2차 작업) -->
+          <button type="button" class="restart_btn" id="restartBtn">다시 오르기</button>
+          <button type="button" class="title_btn" id="titleBtn">설정으로</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="gameLogic.js"></script>
+  </body>
+</html>
