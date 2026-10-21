@@ -22,7 +22,7 @@ const SPRITE_POSES = ['right_stand', 'left_stand', 'right_jump', 'left_jump', 'r
 const spritePath = (ch, pose) => `images/${ch.key}_${pose}.png`;
 
 /* ─── 제목 / 표기 ─── */
-const GAME_TITLE = '제목지어주세요ㅜㅜ'; 
+const GAME_TITLE = '제목지어주세요ㅜㅜ';
 const GAME_SUBTITLE = '어두운 바다의 등불이 되어 팬게임';
 const CREDIT = '';  // 제작자 표기 (예: 'jnj'). 비워두면 표시 안 함
 
@@ -58,7 +58,9 @@ const CONFIG = {
   // 다음 계단까지 좌우 거리: 그 높이까지 뛰는 동안 좌우로 풀이동했을 때 갈 수 있는 거리 기준
   // (위로 많이 올라가야 할수록 체공 시간이 줄어서 좌우 거리도 줄어듦)
   REACH_MARGIN: 0.9,     // 풀이동 거리의 몇 %까지 쓸지 (1에 가까울수록 어려움)
-  REACH_BONUS: 30,       // 계단/캐릭터 너비 덕분에 추가로 닿는 거리(px)
+  REACH_BONUS: 30,
+  SAFE_REACH_Y: 165,     // 꼭대기 바닥까지 마지막 계단에서 닿을 수 있는 최대 높이 (점프 최고 높이 약 187)
+  NO_CRUMBLE_START: 400, // 시작 바닥에서 이 높이까지는 무너지는 계단 없음       // 계단/캐릭터 너비 덕분에 추가로 닿는 거리(px)
   SPRING_W: 24,          // 이미지 10px
 
   // 캐릭터
@@ -111,6 +113,7 @@ const DIFFICULTY_HINTS = {
 };
 
 let GOAL_Y = 0;  // 꼭대기 높이 (난이도에 따라 달라짐)
+const DIFFICULTY_LEVELS = [1, 3, 5];  // 설정 화면에 보여줄 난이도 (연습 / 보통 / 지옥). 2, 4 프리셋은 보관만
 
 /** 난이도 프리셋을 CONFIG에 적용 */
 function applyDifficulty(level) {
@@ -219,6 +222,7 @@ const state = {
   exitT: 0,              // 메인캐릭터가 문에 닿은 시각
   exitPath: null,        // 문 밖으로 나가는 경로
   cleared: false,        // 문 통과 (결과 표시)
+  paused: false,         // 일시정지
   startY: 0,             // 시작 바닥 높이
   particles: [],         // 먼지/부스러기 { x, y, vx, vy, life, max, size, color }
   motes: [],             // 공기 중 떠다니는 먼지 (화면 좌표)
@@ -257,6 +261,10 @@ const photoCaption   = document.getElementById('photoCaption');
 const photoStamp     = document.getElementById('photoStamp');
 const diffGrid       = document.getElementById('diffGrid');
 const saveBtn        = document.getElementById('saveBtn');
+const pauseBtn       = document.getElementById('pauseBtn');
+const pauseScreen    = document.getElementById('pauseScreen');
+const resumeBtn      = document.getElementById('resumeBtn');
+const quitBtn        = document.getElementById('quitBtn');
 const soundToggles   = document.getElementById('soundToggles');
 const sfxBtn         = document.getElementById('sfxBtn');
 const bgmBtn         = document.getElementById('bgmBtn');
@@ -395,32 +403,30 @@ function maxTravelX(gap) {
 }
 
 /** 이전 계단 기준으로 도달 가능한 범위 안에 다음 계단 x 결정 */
-function nextPlatformX(gap, platW) {
+function nextPlatformX(gap, platW, fromX) {
   const W = CONFIG.GAME_W;
   const reach = maxTravelX(gap) * CONFIG.REACH_MARGIN + CONFIG.REACH_BONUS;
 
-  // 화면 안에서만, 이전 계단 기준 reach 범위 안에서 고름
+  // 화면 안에서만, 기준 계단(fromX)에서 reach 범위 안에서 고름
   const half = platW / 2;
-  const lo = Math.max(half, state.genLastX - reach);
-  const hi = Math.min(W - half, state.genLastX + reach);
+  const lo = Math.max(half, fromX - reach);
+  const hi = Math.min(W - half, fromX + reach);
   const cx = rand(lo, hi);
   state.genLastX = cx;
   return cx - half;
 }
 
-function makePlatform(y, t, gap) {
-  const r = rng();
+/** type: 'crumble' 이면 무너지는 계단, 아니면 일반/움직이는 계단 중 랜덤
+ *  reachGap / fromX: 이 계단에 닿아야 하는 기준 계단과의 높이 차 / 기준 계단 x */
+function makePlatform(y, t, reachGap, fromX, crumble) {
   const movingP = lerp(CONFIG.MOVING_CHANCE, t);
-  const crumbleP = lerp(CONFIG.CRUMBLE_CHANCE, t);
-
-  let type = 'normal';
-  if (r < crumbleP) type = 'crumble';
-  else if (r < crumbleP + movingP) type = 'moving';
+  let type = crumble ? 'crumble' : 'normal';
+  if (!crumble && rng() < movingP) type = 'moving';
 
   // 높이 올라갈수록 좁아짐 (픽셀 단위로 맞춤)
   const w = Math.round(lerp(CONFIG.PLAT_W_RANGE, t) / CONFIG.PIX) * CONFIG.PIX;
   const plat = {
-    x: nextPlatformX(gap, w),
+    x: nextPlatformX(reachGap, w, fromX),
     y,
     w,
     type,
@@ -442,27 +448,41 @@ function makePlatform(y, t, gap) {
   return plat;
 }
 
+/**
+ * 계단 생성
+ * - 무너지는 계단은 연속으로 나올 수 있음 (밟고 바로 다음 계단으로 넘어가야 함)
+ * - 단, 시작 바닥 근처에는 무너지는 계단을 두지 않음
+ *   (바닥으로 떨어졌을 때 무너진 계단 때문에 다시 못 올라가는 일 방지)
+ */
 function generatePlatforms() {
   const limit = state.camBottom + viewLH + 300;
+  const SAFE = CONFIG.SAFE_REACH_Y;
   while (state.genTopY < limit && state.genTopY < GOAL_Y) {
     const t = Math.min(1, state.genTopY / GOAL_Y);
     const gap = rand(lerp(CONFIG.GAP_MIN, t), lerp(CONFIG.GAP_MAX, t));
-    const y = state.genTopY + gap;
+    let y = state.genTopY + gap;
 
+    // 꼭대기: 바로 아래 계단에서 닿는 높이일 때만 놓음 (아니면 계단 하나 더)
     if (y >= GOAL_Y - 40) {
-      // 꼭대기: 가로 전체 금색 계단
-      state.platforms.push({
-        x: 0, y: GOAL_Y, w: CONFIG.GAME_W, type: 'goal',
-        // 문 위치: 마지막 계단 반대쪽 끝 근처
-        doorX: state.genLastX < CONFIG.GAME_W / 2 ? CONFIG.GAME_W - 30 - CONFIG.DOOR_W : 30,
-        vx: 0, spring: null, crumbling: false, fallV: 0, alpha: 1,
-      });
-      state.genTopY = GOAL_Y;
-      break;
+      if (GOAL_Y - state.genTopY <= SAFE) {
+        state.platforms.push({
+          x: 0, y: GOAL_Y, w: CONFIG.GAME_W, type: 'goal',
+          // 문 위치: 마지막 계단 반대쪽 끝 근처
+          doorX: state.genLastX < CONFIG.GAME_W / 2 ? CONFIG.GAME_W - 30 - CONFIG.DOOR_W : 30,
+          vx: 0, spring: null, crumbling: false, fallV: 0, alpha: 1,
+        });
+        state.genTopY = GOAL_Y;
+        break;
+      }
+      y = Math.min(GOAL_Y - 45, state.genTopY + SAFE);
     }
 
-    state.platforms.push(makePlatform(y, t, gap));
+    const nearStart = y - state.startY < CONFIG.NO_CRUMBLE_START;
+    const crumble = !nearStart && rng() < lerp(CONFIG.CRUMBLE_CHANCE, t);
+    const plat = makePlatform(y, t, y - state.genTopY, state.genLastX, crumble);
+    state.platforms.push(plat);
     state.genTopY = y;
+    state.genLastX = plat.x + plat.w / 2;
   }
 }
 
@@ -485,6 +505,7 @@ function resetGame(fixedLayout = false) {
   }];
   state.genTopY = startY;
   state.genLastX = CONFIG.GAME_W / 2;
+
   state.camBottom = startY - CONFIG.START_PAD;
 
   state.player = {
@@ -1905,10 +1926,13 @@ async function saveOrShare() {
       : '이미지를 만드는 중이에요. 잠시 후 다시 눌러주세요', CONFIG.TOAST_MS);
     return;
   }
-  const file = new File([shareBlob], `endless-stairs-${Date.now()}.png`, { type: 'image/png' });
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const safeTitle = GAME_TITLE.replace(/[\\/:*?"<>|]/g, '').trim() || 'result';
+  const file = new File([shareBlob], `${safeTitle}_${ymd}.png`, { type: 'image/png' });
   try {
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: GAME_TITLE });
+      await navigator.share({ files: [file] });  // 이미지만 공유 (문구 없음)
       return;
     }
   } catch (err) {
@@ -1932,7 +1956,7 @@ function loop(ts) {
   state.now += dtMs;
 
   // 설정 화면에서는 멈춘 상태로 그리기만 함 (게임 시작 버튼을 눌러야 움직임)
-  if (state.phase !== 'title') update(dtMs / 1000);
+  if (state.phase !== 'title' && !state.paused) update(dtMs / 1000);
   render();
   requestAnimationFrame(loop);
 }
@@ -1985,10 +2009,27 @@ function showToast(text, duration = 1800) {
   toastTimer = setTimeout(() => toastEl.classList.remove('visible'), duration);
 }
 
+/* ─── 일시정지 ─── */
+function setPaused(on) {
+  state.paused = on;
+  state.keys.left = false;
+  state.keys.right = false;
+  pauseScreen.classList.toggle('hidden', !on);
+  if (state.phase === 'playing') touchControls.classList.toggle('hidden', on);
+}
+
+function togglePause() {
+  if (state.phase !== 'playing') return;
+  setPaused(!state.paused);
+}
+
 /* ─── 게임 흐름 ─── */
 function startGame() {
   resetGame();
+  setPaused(false);
   state.phase = 'playing';
+  pauseBtn.classList.remove('hidden');
+  soundToggles.classList.remove('at_top');
   startScreen.classList.add('hidden');
   gameoverScreen.classList.add('hidden');
   soundToggles.classList.remove('hidden');
@@ -2036,6 +2077,7 @@ function checkDoor() {
 
 function endGame(reason) {
   if (state.phase !== 'playing') return;
+  pauseBtn.classList.add('hidden');
   state.phase = 'over';
   state.keys.left = false;
   state.keys.right = false;
@@ -2088,7 +2130,10 @@ function endGame(reason) {
 }
 
 function goToTitle() {
+  setPaused(false);
+  pauseBtn.classList.add('hidden');
   state.phase = 'title';
+  soundToggles.classList.add('at_top');
   resetGame(true);
   gameoverScreen.classList.add('hidden');
   soundToggles.classList.remove('hidden');
@@ -2138,7 +2183,7 @@ function selectCharacter(id) {
 
 function buildDiffGrid() {
   diffGrid.innerHTML = '';
-  Object.keys(DIFFICULTY_PRESETS).forEach(key => {
+  DIFFICULTY_LEVELS.forEach(key => {
     const level = Number(key);
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -2180,6 +2225,13 @@ function handleStart() {
 startBtn.addEventListener('click', handleStart);
 restartBtn.addEventListener('click', startGame);
 titleBtn.addEventListener('click', goToTitle);
+pauseBtn.addEventListener('click', () => { togglePause(); pauseBtn.blur(); });
+resumeBtn.addEventListener('click', () => setPaused(false));
+quitBtn.addEventListener('click', goToTitle);
+// 다른 탭으로 가거나 앱을 내리면 자동 일시정지
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && state.phase === 'playing' && !state.exiting) setPaused(true);
+});
 
 // 소리: 첫 클릭/터치/키 입력 때 준비. 버튼 누를 때 "톡"
 ['pointerdown', 'keydown'].forEach(type => {
@@ -2214,6 +2266,12 @@ const KEY_MAP = { ArrowLeft: 'left', ArrowRight: 'right', a: 'left', d: 'right',
 
 document.addEventListener('keydown', e => {
   if (state.phase !== 'playing') return;
+  if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+    e.preventDefault();
+    togglePause();
+    return;
+  }
+  if (state.paused) return;
   const k = KEY_MAP[e.key];
   if (!k) return;
   e.preventDefault();
@@ -2251,6 +2309,10 @@ nicknameInput.value = storage.get(STORAGE_KEYS.nickname, '');
 playerTagEl.textContent = `#${getPlayerTag()}`;
 buildCharGrid();
 buildDiffGrid();
-selectDifficulty(Number(storage.get(STORAGE_KEYS.diff, CONFIG.DIFFICULTY)));
+{
+  // 예전에 2(쉬움)/4(어려움)를 골랐던 사람은 보통으로
+  const saved = Number(storage.get(STORAGE_KEYS.diff, CONFIG.DIFFICULTY));
+  selectDifficulty(DIFFICULTY_LEVELS.includes(saved) ? saved : 3);
+}
 selectCharacter(storage.get(STORAGE_KEYS.char, CHARACTERS[0].id));
 requestAnimationFrame(loop);

@@ -32,7 +32,12 @@
       </div>
 
       <!-- 소리 켜기/끄기 -->
-      <div class="sound_toggles" id="soundToggles">
+      <!-- 일시정지 버튼 (게임 중에만) -->
+      <button type="button" class="pause_btn sound_btn px_box hidden" id="pauseBtn" aria-label="일시정지">
+        <span class="sound_icon">II</span><span class="sound_label">정지</span>
+      </button>
+
+      <div class="sound_toggles at_top" id="soundToggles">
         <button type="button" class="sound_btn px_box" id="sfxBtn" aria-label="효과음 켜기/끄기">
           <span class="sound_icon">♪</span><span class="sound_label">효과음</span>
         </button>
@@ -62,7 +67,7 @@
               id="nicknameInput"
               class="nickname_input"
               maxlength="12"
-              placeholder="닉네임(1~12자)"
+              placeholder="닉네임 (1~12자)"
               autocomplete="off"
               spellcheck="false"
               aria-label="닉네임"
@@ -80,6 +85,16 @@
           <p class="start_error" id="startError"></p>
           <button type="button" class="start_btn px_btn" id="startBtn">오르기 시작</button>
           <p class="mini_help">← → 키 또는 화면 왼쪽/오른쪽을 눌러 이동</p>
+        </div>
+      </div>
+
+      <!-- 일시정지 화면 -->
+      <div class="pause_screen hidden" id="pauseScreen">
+        <div class="pause_card px_box">
+          <p class="pause_title">일시정지</p>
+          <button type="button" class="restart_btn px_btn" id="resumeBtn">계속하기</button>
+          <button type="button" class="title_btn px_btn" id="quitBtn">처음으로</button>
+          <p class="mini_help">Esc / P 키로도 가능</p>
         </div>
       </div>
 
