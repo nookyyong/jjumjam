@@ -17,8 +17,14 @@ const CHARACTERS = [
   { id: 'c5', key: 'char5', name: '유금이', color: '#7ac4f0' },
 ];
 
-const SPRITE_POSES = ['right_stand', 'left_stand', 'right_jump', 'left_jump'];
+// walk: 꼭대기에서 걸을 때 stand와 번갈아 표시 (다리만 벌린 프레임). 없으면 stand로 대신함
+const SPRITE_POSES = ['right_stand', 'left_stand', 'right_jump', 'left_jump', 'right_walk', 'left_walk'];
 const spritePath = (ch, pose) => `images/${ch.key}_${pose}.png`;
+
+/* ─── 제목 / 표기 ─── */
+const GAME_TITLE = '제목지어주세요ㅜㅜ';
+const GAME_SUBTITLE = '어두운 바다의 등불이 되어 팬게임';
+const CREDIT = '';  // 제작자 표기 (예: 'jnj'). 비워두면 표시 안 함
 
 /* ─── 게임 설정 ─── */
 const CONFIG = {
@@ -67,7 +73,9 @@ const CONFIG = {
   // 꼭대기 문 (닿으면 결과 표시)
   DOOR_W: 40.8,          // 이미지 17×27px
   DOOR_H: 64.8,
-  PHOTO_SIZE: 248,       // 결과 폴라로이드 사진 크기(px). 게임 화면을 이만큼 1:1로 잘라옴
+  PHOTO_SIZE: 248,       // 결과 폴라로이드 사진 크기(px)
+  PHOTO_VIEW_W: 400,     // 사진에 담길 최대 가로 범위(게임 좌표). 이보다 넓게는 안 찍힘 (400 = 게임 영역 전체 폭)
+  WALK_FRAME_MS: 120,    // 걷기 프레임 전환 간격
   EXIT_SLIDE_MS: 500,    // 캐릭터 하나가 문 밖으로 미끄러져 나가는 시간
   DOOR_OPEN: 0.7,        // 평소 문짝 비율 (1 = 닫힘, 작을수록 활짝 열림)
   DOOR_OPEN_EXIT: 0.25,  // 나갈 때 문이 더 열린 상태
@@ -83,15 +91,15 @@ const CONFIG = {
 
 /* ─── 난이도 프리셋 ─── */
 // [시작값, 꼭대기값] 쌍은 높이 올라갈수록 시작값 → 꼭대기값으로 변함
-//   PX_PER_STAIR  1계단 높이(클수록 꼭대기까지 멀어짐)
+//   PX_PER_STAIR  1계단 높이(클수록 꼭대기까지 멀어짐). 보통 4.5 ≈ 클리어 2분 30초 (이전 6 ≈ 3분 20초)
 //   GAP_MIN/MAX   계단 사이 세로 간격 (GAP_MAX는 187 미만 유지)
 //   PLAT_W        계단 너비 (이미지 30px = 72)
 const DIFFICULTY_PRESETS = {
-  1: { PX_PER_STAIR: 5, GAP_MIN: [30, 55], GAP_MAX: [90, 125], MOVING_CHANCE: [0.03, 0.15], CRUMBLE_CHANCE: [0.05, 0.15], SPRING_CHANCE: 0.10, MOVING_SPEED: [50, 120], PLAT_W: [72, 72] },
-  2: { PX_PER_STAIR: 5, GAP_MIN: [30, 65], GAP_MAX: [90, 140], MOVING_CHANCE: [0.03, 0.20], CRUMBLE_CHANCE: [0.05, 0.20], SPRING_CHANCE: 0.10, MOVING_SPEED: [50, 120], PLAT_W: [72, 72] },
-  3: { PX_PER_STAIR: 6, GAP_MIN: [35, 75], GAP_MAX: [95, 155], MOVING_CHANCE: [0.05, 0.28], CRUMBLE_CHANCE: [0.08, 0.28], SPRING_CHANCE: 0.07, MOVING_SPEED: [60, 150], PLAT_W: [72, 57.6] },
-  4: { PX_PER_STAIR: 7, GAP_MIN: [40, 85], GAP_MAX: [100, 165], MOVING_CHANCE: [0.05, 0.32], CRUMBLE_CHANCE: [0.10, 0.35], SPRING_CHANCE: 0.05, MOVING_SPEED: [70, 170], PLAT_W: [67.2, 52.8] },
-  5: { PX_PER_STAIR: 8, GAP_MIN: [45, 95], GAP_MAX: [110, 172], MOVING_CHANCE: [0.06, 0.35], CRUMBLE_CHANCE: [0.12, 0.40], SPRING_CHANCE: 0.04, MOVING_SPEED: [80, 190], PLAT_W: [62.4, 43.2] },
+  1: { PX_PER_STAIR: 3.75, GAP_MIN: [30, 55], GAP_MAX: [90, 125], MOVING_CHANCE: [0.03, 0.15], CRUMBLE_CHANCE: [0.05, 0.15], SPRING_CHANCE: 0.10, MOVING_SPEED: [50, 120], PLAT_W: [72, 72] },
+  2: { PX_PER_STAIR: 3.75, GAP_MIN: [30, 65], GAP_MAX: [90, 140], MOVING_CHANCE: [0.03, 0.20], CRUMBLE_CHANCE: [0.05, 0.20], SPRING_CHANCE: 0.10, MOVING_SPEED: [50, 120], PLAT_W: [72, 72] },
+  3: { PX_PER_STAIR: 4.5, GAP_MIN: [35, 75], GAP_MAX: [95, 155], MOVING_CHANCE: [0.05, 0.28], CRUMBLE_CHANCE: [0.08, 0.28], SPRING_CHANCE: 0.07, MOVING_SPEED: [60, 150], PLAT_W: [72, 57.6] },
+  4: { PX_PER_STAIR: 5.25, GAP_MIN: [40, 85], GAP_MAX: [100, 165], MOVING_CHANCE: [0.05, 0.32], CRUMBLE_CHANCE: [0.10, 0.35], SPRING_CHANCE: 0.05, MOVING_SPEED: [70, 170], PLAT_W: [67.2, 52.8] },
+  5: { PX_PER_STAIR: 6, GAP_MIN: [45, 95], GAP_MAX: [110, 172], MOVING_CHANCE: [0.06, 0.35], CRUMBLE_CHANCE: [0.12, 0.40], SPRING_CHANCE: 0.04, MOVING_SPEED: [80, 190], PLAT_W: [62.4, 43.2] },
 };
 const DIFFICULTY_NAMES = { 1: '연습', 2: '쉬움', 3: '보통', 4: '어려움', 5: '지옥' };
 const DIFFICULTY_HINTS = {
@@ -140,6 +148,8 @@ const STORAGE_KEYS = {
   tag: 'stairs_tag',
   best: 'stairs_best_jump_d',  // + 난이도 번호. { stairs, timeMs }
   diff: 'stairs_diff',
+  muteSfx: 'stairs_mute_sfx',
+  muteBgm: 'stairs_mute_bgm',
 };
 
 /* ─── 저장소 (localStorage 실패해도 게임은 동작) ─── */
@@ -220,7 +230,7 @@ const state = {
 /* ─── DOM 참조 ─── */
 const gameWrapper    = document.getElementById('gameWrapper');
 const canvas         = document.getElementById('gameCanvas');
-const ctx            = canvas.getContext('2d');
+let ctx              = canvas.getContext('2d');  // 결과 사진 찍을 때 잠깐 다른 캔버스로 바뀜
 const hudEl          = document.getElementById('hud');
 const floorDisplay   = document.getElementById('floorDisplay');
 const stairsDisplay  = document.getElementById('stairsDisplay');
@@ -236,20 +246,21 @@ const charGrid       = document.getElementById('charGrid');
 const startError     = document.getElementById('startError');
 const startBtn       = document.getElementById('startBtn');
 const gameoverScreen = document.getElementById('gameoverScreen');
-const gameoverSub    = document.getElementById('gameoverSub');
 const recName        = document.getElementById('recName');
 const recChar        = document.getElementById('recChar');
 const profileImg     = document.getElementById('profileImg');
 const recMode        = document.getElementById('recMode');
 const recStairs      = document.getElementById('recStairs');
 const recTime        = document.getElementById('recTime');
-const recBest        = document.getElementById('recBest');
 const photoCanvas    = document.getElementById('photoCanvas');
 const photoCaption   = document.getElementById('photoCaption');
 const photoStamp     = document.getElementById('photoStamp');
 const diffGrid       = document.getElementById('diffGrid');
-const diffHint       = document.getElementById('diffHint');
 const saveBtn        = document.getElementById('saveBtn');
+const soundToggles   = document.getElementById('soundToggles');
+const sfxBtn         = document.getElementById('sfxBtn');
+const bgmBtn         = document.getElementById('bgmBtn');
+const tabletFoot     = document.getElementById('tabletFoot');
 const restartBtn     = document.getElementById('restartBtn');
 const titleBtn       = document.getElementById('titleBtn');
 
@@ -483,6 +494,7 @@ function resetGame(fixedLayout = false) {
     vy: CONFIG.JUMP_V,
     dir: 1,
     maxY: startY,
+    grounded: false,     // 꼭대기 바닥에 서 있음 (점프 대신 걷기)
   };
   state.history = [];
   state.followers = CHARACTERS
@@ -515,6 +527,18 @@ function land(plat) {
   p.y = plat.y;
   state.shotArmed = true;
 
+  // 꼭대기 바닥: 더 이상 튀지 않고 서서 걸음
+  if (plat.type === 'goal') {
+    p.vy = 0;
+    p.grounded = true;
+    spawnDust(p.x, plat.y, 16, 1);
+    if (state.phase === 'playing' && !state.summit) {
+      sound.play('land');
+      reachSummit(plat);
+    }
+    return;
+  }
+
   if (plat.spring && overlapsX(p.x, plat.x + plat.spring.ox, plat.x + plat.spring.ox + CONFIG.SPRING_W)) {
     p.vy = CONFIG.SPRING_V;
     plat.spring.usedT = state.now;
@@ -523,12 +547,11 @@ function land(plat) {
   }
 
   spawnDust(p.x, plat.y, p.vy === CONFIG.SPRING_V ? 26 : 16, p.vy === CONFIG.SPRING_V ? 1.4 : 1);
+  if (state.phase === 'playing') sound.play(p.vy === CONFIG.SPRING_V ? 'spring' : 'jump');
   if (plat.type === 'crumble') {
     plat.crumbling = true;
     spawnDebris(plat);
-  }
-  if (plat.type === 'goal' && state.phase === 'playing' && !state.summit) {
-    reachSummit(plat);
+    if (state.phase === 'playing') sound.play('crumble');
   }
 }
 
@@ -612,7 +635,7 @@ function update(dt) {
   if (state.exiting) {
     if (!state.exitShotTaken && state.now - state.exitT > 160) {
       state.exitShotTaken = true;
-      state.wantShot = { wx: state.door.x + CONFIG.DOOR_W / 2, wy: state.door.y + CONFIG.DOOR_H * 0.35 };
+      state.wantShot = { wx: state.door.x + CONFIG.DOOR_W / 2, wy: state.door.y + CONFIG.DOOR_H * 0.6 };
     }
     const doneT = state.exitT + state.followers.length * CONFIG.FOLLOW_DELAY_MS + CONFIG.EXIT_SLIDE_MS + 300;
     if (state.phase === 'playing' && state.now >= doneT) endGame('clear');
@@ -627,11 +650,16 @@ function update(dt) {
   p.vx += (input * CONFIG.MOVE_SPEED - p.vx) * Math.min(1, CONFIG.MOVE_ACCEL * dt);
   if (input !== 0) p.dir = input;
 
-  // 중력 + 이동
+  // 중력 + 이동 (꼭대기 바닥에 서 있으면 중력 없이 옆으로만)
   const prevY = p.y;
-  p.vy -= CONFIG.GRAVITY * dt;
-  p.x += p.vx * dt;
-  p.y += p.vy * dt;
+  if (p.grounded) {
+    p.vy = 0;
+    p.x += p.vx * dt;
+  } else {
+    p.vy -= CONFIG.GRAVITY * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+  }
   // 화면 양 끝은 벽
   const halfW = CONFIG.CHAR_W / 2 + sideCut;
   if (p.x < halfW) { p.x = halfW; p.vx = Math.max(0, p.vx); }
@@ -672,13 +700,21 @@ function update(dt) {
   // 떨어지는 장면 사진: 화면 아래쪽으로 내려가는 순간 한 번 찍어둠 (게임오버 시 폴라로이드)
   if (state.phase === 'playing' && state.shotArmed && p.vy < -300 && p.y < state.camBottom + viewLH * 0.28) {
     state.shotArmed = false;
-    state.wantShot = { wx: p.x, wy: p.y + CONFIG.CHAR_H * 0.2 };
+    state.wantShot = { wx: p.x, wy: p.y + CONFIG.CHAR_H * 1.2 };
+  }
+
+  // 배경음: 높이에 따라 조금씩 밝아짐 (0.5초마다만 갱신)
+  if (bgm.ctx && Math.floor(state.now / 500) !== Math.floor((state.now - dt * 1000) / 500)) {
+    bgm.setHeight(Math.min(1, Math.max(0, p.y / GOAL_Y)));
   }
 
   // 화면 아래로 완전히 떨어짐
   if (state.phase === 'playing' && p.y < state.camBottom - CONFIG.CHAR_H) {
     if (DEV.god) p.vy = CONFIG.SPRING_V;  // 개발용 무적: 튀어오름
-    else endGame('fall');
+    else {
+      sound.play('fall');
+      endGame('fall');
+    }
   }
 
   // 꼭대기: 문에 닿으면 결과 표시
@@ -690,12 +726,13 @@ function update(dt) {
     if (floor % CONFIG.TOAST_FLOOR_STEP === 0 && floor < CONFIG.GOAL_FLOOR && !state.toastsShown[floor]) {
       state.toastsShown[floor] = true;
       showFloorToast(floor);
+      sound.play('floor');
       spawnConfetti(p.x, p.y + CONFIG.CHAR_H);
     }
   }
 
   // 따라오는 캐릭터용 이동 기록
-  state.history.push({ t: state.now, x: p.x, y: p.y, dir: p.dir, rising: p.vy > 0 });
+  state.history.push({ t: state.now, x: p.x, y: p.y, dir: p.dir, rising: p.vy > 0, walking: p.grounded && Math.abs(p.vx) > 30 });
   const keepFrom = state.now - (state.followers.length + 1) * CONFIG.FOLLOW_DELAY_MS - 200;
   while (state.history.length > 2 && state.history[1].t < keepFrom) state.history.shift();
 
@@ -988,11 +1025,12 @@ function drawPlatforms() {
   ctx.globalAlpha = 1;
 }
 
-function drawCharacterAt(ch, lx, ly, dir, rising) {
+function drawCharacterAt(ch, lx, ly, dir, rising, walkFrame = false) {
   const w = CONFIG.CHAR_W;
   const h = CONFIG.CHAR_H;
-  const pose = `${dir < 0 ? 'left' : 'right'}_${rising ? 'jump' : 'stand'}`;
-  const holder = ch.sprites[pose];
+  const side = dir < 0 ? 'left' : 'right';
+  let holder = ch.sprites[`${side}_${rising ? 'jump' : walkFrame ? 'walk' : 'stand'}`];
+  if (walkFrame && !holder.ok) holder = ch.sprites[`${side}_stand`];
 
   ctx.save();
   ctx.translate(snap(lx), snap(ly));
@@ -1018,8 +1056,10 @@ function drawCharacterAt(ch, lx, ly, dir, rising) {
   ctx.restore();
 }
 
-function drawCharacter(ch, wx, wy, dir, rising) {
-  drawCharacterAt(ch, wx, toLY(wy), dir, rising);
+/** walking이면 시각 t 기준으로 stand ↔ walk 번갈아 (종종걸음) */
+function drawCharacter(ch, wx, wy, dir, rising, walking = false, t = state.now) {
+  const walkFrame = walking && Math.floor(t / CONFIG.WALK_FRAME_MS) % 2 === 1;
+  drawCharacterAt(ch, wx, toLY(wy), dir, rising, walkFrame);
 }
 
 /**
@@ -1031,7 +1071,7 @@ function exitPose(k) {
   const t = state.now - (state.exitT + k * CONFIG.FOLLOW_DELAY_MS);
   if (t < 0) return null;
   const s = Math.min(1, t / CONFIG.EXIT_SLIDE_MS);
-  const e = s * s;  // 천천히 출발해서 빨라짐
+  const e = s;  // 일정한 속도로 걸어 나감
   const { x0, y0, dir, endX } = state.exitPath;
   return {
     x: x0 + (endX - x0) * e,
@@ -1068,10 +1108,11 @@ function drawCharacters() {
     const ch = state.followers[k - 1].ch;
     const ex = exitPose(k);
     if (ex) {
-      if (!ex.done) drawCharacter(ch, ex.x, ex.y, ex.dir, false);
+      if (!ex.done) drawCharacter(ch, ex.x, ex.y, ex.dir, false, true);
     } else if (state.history.length) {
-      const s = sampleHistory(state.now - k * CONFIG.FOLLOW_DELAY_MS);
-      drawCharacter(ch, s.x, s.y, s.dir, s.rising);
+      const ts = state.now - k * CONFIG.FOLLOW_DELAY_MS;
+      const s = sampleHistory(ts);
+      drawCharacter(ch, s.x, s.y, s.dir, s.rising, s.walking, ts);
     } else {
       // 시작 전: 메인캐릭터 뒤에 겹쳐서 서 있음
       drawCharacter(ch, p.x - p.dir * k * 8, p.y, p.dir, false);
@@ -1081,10 +1122,10 @@ function drawCharacters() {
   const main = getCharacter(state.selectedChar);
   const ex0 = exitPose(0);
   if (ex0) {
-    if (!ex0.done) drawCharacter(main, ex0.x, ex0.y, ex0.dir, false);
+    if (!ex0.done) drawCharacter(main, ex0.x, ex0.y, ex0.dir, false, true);
   } else {
     const rising = state.phase !== 'title' && p.vy > 0;
-    drawCharacter(main, p.x, p.y, p.dir, rising);
+    drawCharacter(main, p.x, p.y, p.dir, rising, p.grounded && Math.abs(p.vx) > 30);
   }
 
   if (exiting) ctx.restore();
@@ -1097,7 +1138,7 @@ function drawCharacters() {
   }
 }
 
-function render() {
+function renderScene() {
   drawBackdrop();
 
   // 게임 영역 좌표계로 전환 + 영역 밖은 잘라냄
@@ -1118,45 +1159,547 @@ function render() {
   drawAbyss();
 
   ctx.restore();
+}
+
+function render() {
+  renderScene();
   if (state.wantShot) takeShot();
 }
 
 /* ─── 사진 (결과 화면 폴라로이드) ─── */
 const shotBuffer = document.createElement('canvas');
 
+/**
+ * 결과 사진 촬영: 화면을 잘라오는 대신, 그 순간의 장면을 사진용 캔버스에 따로 한 번 더 그림
+ * - 도트 1칸 = 사진 픽셀 정수 칸 → 안 찌그러짐
+ * - 화면보다 넓게 (가로로 게임 영역 거의 전체가 담김)
+ */
 function takeShot() {
   const { wx, wy } = state.wantShot;
   state.wantShot = null;
-  shotBuffer.width = canvas.width;
-  shotBuffer.height = canvas.height;
-  shotBuffer.getContext('2d').drawImage(canvas, 0, 0);
-  state.shot = {
-    cx: (offX + wx * scale) * dpr,
-    cy: toLY(wy) * scale * dpr,
-  };
+
+  const N = Math.round(CONFIG.PHOTO_SIZE * dpr);                         // 사진 실제 픽셀 크기
+  // 도트 1칸 = 정수 픽셀. 올림으로 정해서 찍히는 범위가 PHOTO_VIEW_W(게임 영역 폭)를 넘지 않게
+  const artPx = Math.max(1, Math.ceil(N / (CONFIG.PHOTO_VIEW_W / CONFIG.PIX)));
+  const viewWGame = (N / artPx) * CONFIG.PIX;  // 실제로 담기는 가로 범위
+  // 캐릭터를 따라가되, 게임 영역 밖(검은 바깥)은 안 찍히게 좌우를 붙잡음
+  const half = viewWGame / 2;
+  const cx = Math.min(Math.max(wx, half), CONFIG.GAME_W - half);
+  shotBuffer.width = N;
+  shotBuffer.height = N;
+
+  // 그리기 설정을 잠깐 사진용으로 바꿔서 같은 장면을 그림
+  const saved = { ctx, dpr, viewW, viewH, scale, offX, viewLH, sideCut, cam: state.camBottom };
+  ctx = shotBuffer.getContext('2d');
+  dpr = 1;
+  viewW = N;
+  viewH = N;
+  scale = artPx / CONFIG.PIX;
+  viewLH = N / scale;
+  offX = Math.round(N / 2 - cx * scale);
+  state.camBottom = wy - viewLH / 2;
+  try {
+    renderScene();
+  } finally {
+    ({ ctx, dpr, viewW, viewH, scale, offX, viewLH, sideCut } = saved);
+    state.camBottom = saved.cam;
+  }
+  state.shot = true;
 }
 
-/** 찍어둔 장면에서 캐릭터 주변을 정사각형으로 잘라 폴라로이드에 그림 */
+/** 찍어둔 사진을 폴라로이드에 옮김 (1:1) */
 function developPhoto() {
+  if (!state.shot) {  // 찍어둔 사진이 없으면 지금 장면
+    state.wantShot = { wx: state.player.x, wy: state.player.y + CONFIG.CHAR_H * 0.5 };
+    takeShot();
+  }
+  photoCanvas.width = shotBuffer.width;
+  photoCanvas.height = shotBuffer.height;
   const pctx = photoCanvas.getContext('2d');
   pctx.imageSmoothingEnabled = false;
-  pctx.fillStyle = '#2a2826';
-  pctx.fillRect(0, 0, photoCanvas.width, photoCanvas.height);
+  pctx.drawImage(shotBuffer, 0, 0);
+}
 
-  let src = shotBuffer;
-  let shot = state.shot;
-  if (!shot) {  // 찍어둔 사진이 없으면 지금 화면
-    src = canvas;
-    shot = { cx: (offX + state.player.x * scale) * dpr, cy: viewH * 0.5 * dpr };
-  }
-  // 화면 픽셀을 1:1로 잘라옴 (확대/축소 없이 → 도트가 화면에서 보던 그대로)
-  const size = Math.min(src.width, src.height, Math.round(CONFIG.PHOTO_SIZE * dpr));
-  const sx = Math.round(Math.max(0, Math.min(src.width - size, shot.cx - size / 2)));
-  const sy = Math.round(Math.max(0, Math.min(src.height - size, shot.cy - size / 2)));
-  photoCanvas.width = size;
-  photoCanvas.height = size;
-  pctx.imageSmoothingEnabled = false;
-  pctx.drawImage(src, sx, sy, size, size, 0, 0, size, size);
+/** 결과 화면/저장 이미지 맨 아래 두 줄: [제목 (· by 제작자)], [부제] */
+function footerLines() {
+  return [[GAME_TITLE, CREDIT && `by ${CREDIT}`].filter(Boolean).join(' · '), GAME_SUBTITLE];
+}
+
+/* ─── 효과음 (파일 없이 Web Audio로 합성. 값은 sound_test.html에서 조절해서 붙여넣기) ─── */
+const SFX = {
+  jump:    [{ wave: 'square', from: 320, to: 640, time: 0.08, vol: 0.12 }],
+  spring:  [{ wave: 'square', from: 180, to: 900, time: 0.32, vol: 0.14, wobble: 40 }],
+  land:    [{ wave: 'triangle', from: 160, to: 50, time: 0.12, vol: 0.3 }, { wave: 'noise', from: 0, to: 0, time: 0.08, vol: 0.12, cut: 600 }],
+  crumble: [{ wave: 'noise', from: 0, to: 0, time: 0.3, vol: 0.22, cut: 1400 }, { wave: 'square', from: 140, to: 60, time: 0.18, vol: 0.06 }],
+  floor:   [{ wave: 'square', from: 660, to: 660, time: 0.1, vol: 0.12 }, { wave: 'square', from: 990, to: 990, time: 0.18, vol: 0.12, delay: 0.1 }],
+  summit:  [{ wave: 'square', from: 523, to: 523, time: 0.1, vol: 0.12 }, { wave: 'square', from: 659, to: 659, time: 0.1, vol: 0.12, delay: 0.1 }, { wave: 'square', from: 784, to: 784, time: 0.1, vol: 0.12, delay: 0.2 }, { wave: 'square', from: 1046, to: 1046, time: 0.3, vol: 0.12, delay: 0.3 }],
+  door:    [{ wave: 'sawtooth', from: 220, to: 160, time: 0.35, vol: 0.06, wobble: 12 }, { wave: 'triangle', from: 880, to: 1760, time: 0.25, vol: 0.1, delay: 0.25 }],
+  fall:    [{ wave: 'square', from: 700, to: 70, time: 0.7, vol: 0.12, wobble: 25 }],
+  click:   [{ wave: 'triangle', from: 880, to: 660, time: 0.04, vol: 0.15 }],
+};
+
+const sound = {
+  ctx: null,
+  master: null,
+  noise: null,
+  sfxMuted: storage.get(STORAGE_KEYS.muteSfx, '0') === '1',
+  bgmMuted: storage.get(STORAGE_KEYS.muteBgm, '0') === '1',
+
+  /** 브라우저 정책상 클릭/키 입력 뒤에만 소리를 낼 수 있어서 첫 입력 때 준비 */
+  unlock() {
+    if (this.ctx) {
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      return;
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this.ctx = new AC();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.6;
+    this.master.connect(this.ctx.destination);
+    this.noise = this.ctx.createBuffer(1, this.ctx.sampleRate, this.ctx.sampleRate);
+    const data = this.noise.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    bgm.start(this.ctx, this.master);
+  },
+
+  play(name) {
+    if (this.sfxMuted || !this.ctx || !SFX[name]) return;
+    const start = this.ctx.currentTime + 0.005;
+    SFX[name].forEach(L => this.layer(L, start));
+  },
+
+  layer(L, start) {
+    const c = this.ctx;
+    const t = start + (L.delay || 0);
+    const amp = c.createGain();
+    amp.gain.setValueAtTime(L.vol, t);
+    amp.gain.exponentialRampToValueAtTime(0.0001, t + L.time);
+    amp.connect(this.master);
+
+    if (L.wave === 'noise') {
+      const src = c.createBufferSource();
+      src.buffer = this.noise;
+      const filter = c.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(L.cut || 2000, t);
+      filter.frequency.exponentialRampToValueAtTime(Math.max(80, (L.cut || 2000) / 5), t + L.time);
+      src.connect(filter).connect(amp);
+      src.start(t);
+      src.stop(t + L.time);
+      return;
+    }
+
+    const osc = c.createOscillator();
+    osc.type = L.wave;
+    osc.frequency.setValueAtTime(Math.max(1, L.from), t);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1, L.to), t + L.time);
+    if (L.wobble) {
+      const lfo = c.createOscillator();
+      const depth = c.createGain();
+      lfo.frequency.value = 28;
+      depth.gain.value = L.wobble;
+      lfo.connect(depth).connect(osc.frequency);
+      lfo.start(t);
+      lfo.stop(t + L.time);
+    }
+    osc.connect(amp);
+    osc.start(t);
+    osc.stop(t + L.time);
+  },
+
+  toggleSfx() {
+    this.sfxMuted = !this.sfxMuted;
+    storage.set(STORAGE_KEYS.muteSfx, this.sfxMuted ? '1' : '0');
+    updateSoundBtns();
+  },
+
+  toggleBgm() {
+    this.bgmMuted = !this.bgmMuted;
+    storage.set(STORAGE_KEYS.muteBgm, this.bgmMuted ? '1' : '0');
+    bgm.setMuted(this.bgmMuted);
+    updateSoundBtns();
+  },
+};
+
+/* ─── 배경음: 무너지는 해저기지 앰비언트 (파일 없이 실시간 합성) ───
+ * 메인: 진공 ~ 물속 같은 먹먹한 공간감
+ *   - 계단통로를 타고 흐르는 바람 소리 (휘이잉, 천천히 돌풍처럼)
+ *   - 물속 웅얼거림 (깎아낸 잡음이 천천히 밀려왔다 빠짐)
+ *   - 아주 옅게 깔리는 화음
+ *   - 가끔 똑… 물방울, 보글보글 기포
+ * 가끔:
+ *   - 쇠파이프끼리 부딪히는 "깡… 깡… 깡…"
+ *   - 철골이 휘다가 부러지는 "끼이익-드드득-쿵"
+ * 위로 올라갈수록 바람이 조금씩 세짐
+ */
+const BGM_VOLUME = 0.5;   // 배경음 전체 크기 (효과음 대비). 0이면 배경음 끔
+const CONFIG_SFX = {
+  clankVol: 0.09,   // 쇠파이프 "깡" 크기
+  creakVol: 0.085,  // 철골 휘고 부러지는 소리 크기
+};
+
+const bgm = {
+  ctx: null,
+  out: null,
+  far: null,         // 멀리서 들리는 소리용 (먹먹하게 깎음)
+  windFilter: null,
+  reverb: null,
+  echo: null,
+  chordIdx: 0,
+
+  start(ctx, master) {
+    if (this.ctx || BGM_VOLUME <= 0) return;
+    this.ctx = ctx;
+    this.out = ctx.createGain();
+    this.out.gain.value = 0;
+    this.out.gain.linearRampToValueAtTime(BGM_VOLUME, ctx.currentTime + 4);  // 서서히 커짐
+    // 배경음 켜기/끄기 스위치
+    this.bus = ctx.createGain();
+    this.bus.gain.value = sound.bgmMuted ? 0 : 1;
+    this.bus.connect(master);
+    this.out.connect(this.bus);
+
+    // 잔향: 넓고 울리는 콘크리트/철 구조물 공간
+    this.reverb = ctx.createConvolver();
+    const len = ctx.sampleRate * 4;
+    const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch);
+      for (let k = 0; k < len; k++) d[k] = (Math.random() * 2 - 1) * Math.pow(1 - k / len, 2.5);
+    }
+    this.reverb.buffer = ir;
+    const wet = ctx.createGain();
+    wet.gain.value = 0.7;
+    this.reverb.connect(wet).connect(this.out);
+
+    // 멀리서 들리는 소리: 고음을 깎아서 물 건너 들리는 것처럼
+    this.far = ctx.createBiquadFilter();
+    this.far.type = 'lowpass';
+    this.far.frequency.value = 1400;
+    this.far.connect(this.reverb);
+    const farDry = ctx.createGain();
+    farDry.gain.value = 0.35;
+    this.far.connect(farDry).connect(this.out);
+
+    // 메아리 (물방울용)
+    this.echo = ctx.createDelay(1);
+    this.echo.delayTime.value = 0.42;
+    const fb = ctx.createGain();
+    fb.gain.value = 0.35;
+    this.echo.connect(fb).connect(this.echo);
+    this.echo.connect(this.reverb);
+    this.echo.connect(this.out);
+
+    this.startWind();
+    this.startPressure();
+    this.nextChord();
+    this.later(() => this.scheduleDrip(), 2000);
+    this.later(() => this.scheduleBubbles(), 5000);
+    this.later(() => this.scheduleClank(), 6000 + Math.random() * 6000);
+    this.later(() => this.scheduleCreak(), 14000 + Math.random() * 8000);
+  },
+
+  /** 바람 소리: 잡음을 좁게 걸러서 "휘이잉", 가운데 음높이와 세기가 천천히 바뀌며 돌풍처럼 */
+  startWind() {
+    const c = this.ctx;
+    // 두 줄기를 다른 속도로 움직여서 단조롭지 않게
+    [[420, 0.023, 0.045], [760, 0.037, 0.028]].forEach(([center, speed, vol]) => {
+      const src = c.createBufferSource();
+      src.buffer = sound.noise;
+      src.loop = true;
+      src.playbackRate.value = 0.7 + Math.random() * 0.3;
+      const bp = c.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = center;
+      bp.Q.value = 6;
+      const sweep = c.createOscillator();
+      const sweepDepth = c.createGain();
+      sweep.frequency.value = speed;
+      sweepDepth.gain.value = center * 0.45;
+      sweep.connect(sweepDepth).connect(bp.frequency);
+      const g = c.createGain();
+      g.gain.value = vol;
+      const gust = c.createOscillator();
+      const gustDepth = c.createGain();
+      gust.frequency.value = speed * 1.7;
+      gustDepth.gain.value = vol * 0.8;
+      gust.connect(gustDepth).connect(g.gain);
+      src.connect(bp).connect(g);
+      g.connect(this.out);
+      g.connect(this.reverb);
+      src.start();
+      sweep.start();
+      gust.start();
+      if (!this.windFilter) this.windFilter = bp;
+    });
+  },
+
+  /** 물속 웅얼거림: 아주 낮게 깎은 잡음이 파도처럼 천천히 밀려왔다 빠짐 */
+  startPressure() {
+    const c = this.ctx;
+    const src = c.createBufferSource();
+    src.buffer = sound.noise;
+    src.loop = true;
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 180;
+    lp.Q.value = 1.5;
+    const g = c.createGain();
+    g.gain.value = 0.11;
+    const swell = c.createOscillator();
+    const swellDepth = c.createGain();
+    swell.frequency.value = 0.09;
+    swellDepth.gain.value = 0.06;
+    swell.connect(swellDepth).connect(g.gain);
+    const cutLfo = c.createOscillator();
+    const cutDepth = c.createGain();
+    cutLfo.frequency.value = 0.031;
+    cutDepth.gain.value = 70;
+    cutLfo.connect(cutDepth).connect(lp.frequency);
+    src.connect(lp).connect(g);
+    g.connect(this.out);
+    g.connect(this.reverb);
+    src.start();
+    swell.start();
+    cutLfo.start();
+  },
+
+  /** 아주 옅은 화음 (분위기만): 10초마다 천천히 바뀜 */
+  nextChord() {
+    const chords = [
+      [110, 130.8, 164.8],   // Am
+      [87.3, 110, 130.8],    // F
+      [98, 123.5, 146.8],    // G
+      [82.4, 98, 123.5],     // Em
+    ];
+    const c = this.ctx;
+    const t = c.currentTime;
+    const dur = 12;
+    chords[this.chordIdx % chords.length].forEach((f, k) => {
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = 'sine';
+      o.frequency.value = f * 2;
+      o.detune.value = (k - 1) * 7;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.012, t + 4);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(this.reverb);
+      o.start(t);
+      o.stop(t + dur);
+    });
+    this.chordIdx++;
+    this.later(() => this.nextChord(), 10000);
+  },
+
+  /** 물방울: 높은 음이 순식간에 떨어지는 "똑" + 메아리 */
+  scheduleDrip() {
+    const c = this.ctx;
+    const t = c.currentTime;
+    const f = 900 + Math.random() * 1400;
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f, t);
+    o.frequency.exponentialRampToValueAtTime(f * 0.35, t + 0.09);
+    g.gain.setValueAtTime(0.05, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    o.connect(g).connect(this.echo);
+    o.start(t);
+    o.stop(t + 0.15);
+    this.later(() => this.scheduleDrip(), 2500 + Math.random() * 6000);
+  },
+
+  /** 기포: 보글보글 짧게 올라가는 소리 몇 개 */
+  scheduleBubbles() {
+    const c = this.ctx;
+    const n = 3 + Math.floor(Math.random() * 5);
+    for (let k = 0; k < n; k++) {
+      const t = c.currentTime + k * (0.05 + Math.random() * 0.09);
+      const f = 220 + Math.random() * 260;
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(f, t);
+      o.frequency.exponentialRampToValueAtTime(f * 2.4, t + 0.05);
+      g.gain.setValueAtTime(0.025, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+      o.connect(g).connect(this.far);
+      o.start(t);
+      o.stop(t + 0.08);
+    }
+    this.later(() => this.scheduleBubbles(), 6000 + Math.random() * 9000);
+  },
+
+  /** 철골이 휘다가 부러지는 소리 (18~32초에 한 번)
+   *  1) "끼이이익" 쇠가 버티며 휘는 신음  2) "드드드득" 금이 가며 갈라짐  3) "쿵" 떨어져 나감 */
+  scheduleCreak() {
+    const c = this.ctx;
+    const t = c.currentTime;
+    const groan = 1.2 + Math.random() * 0.8;   // 끼이이익 길이
+    const crack = 0.5 + Math.random() * 0.3;   // 드드드득 길이
+    const vol = CONFIG_SFX.creakVol;
+
+    // 1) 끼이이익: 톱니파를 떨리게 해서 쇠가 비틀리는 소리
+    const base = 80 + Math.random() * 50;   // 낮을수록 묵직
+    const o = c.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(base, t);
+    o.frequency.linearRampToValueAtTime(base * 1.6, t + groan);
+    const jitter = c.createOscillator();
+    const jitterDepth = c.createGain();
+    jitter.type = 'square';
+    jitter.frequency.value = 22 + Math.random() * 10;
+    jitterDepth.gain.value = base * 0.12;
+    jitter.connect(jitterDepth).connect(o.frequency);
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 6;
+    bp.frequency.setValueAtTime(340, t);
+    bp.frequency.linearRampToValueAtTime(800, t + groan);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol * 0.8, t + groan * 0.6);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + groan + 0.1);
+    o.connect(bp).connect(g);
+    g.connect(this.out);
+    g.connect(this.reverb);
+    o.start(t);
+    o.stop(t + groan + 0.1);
+    jitter.start(t);
+    jitter.stop(t + groan + 0.1);
+
+    // 2) 드드드득: 짧은 "딱"이 점점 빨라지며 이어짐
+    let tt = t + groan - 0.1;
+    let gapMs = 0.07;
+    while (tt < t + groan + crack) {
+      const s = c.createBufferSource();
+      s.buffer = sound.noise;
+      const f = c.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 600 + Math.random() * 1000;
+      f.Q.value = 2;
+      const tg = c.createGain();
+      tg.gain.setValueAtTime(vol * (0.6 + Math.random() * 0.6), tt);
+      tg.gain.exponentialRampToValueAtTime(0.0001, tt + 0.025);
+      s.connect(f).connect(tg);
+      tg.connect(this.out);
+      tg.connect(this.reverb);
+      s.start(tt, Math.random() * 0.5, 0.03);
+      tt += gapMs * (0.6 + Math.random() * 0.8);
+      gapMs = Math.max(0.018, gapMs * 0.88);
+    }
+
+    // 3) 쿵: 떨어져 나간 조각이 멀리서 부딪힘
+    const thud = t + groan + crack + 0.15;
+    const k = c.createOscillator();
+    const kg = c.createGain();
+    k.type = 'sine';
+    k.frequency.setValueAtTime(85, thud);
+    k.frequency.exponentialRampToValueAtTime(32, thud + 0.4);
+    kg.gain.setValueAtTime(vol * 1.8, thud);
+    kg.gain.exponentialRampToValueAtTime(0.0001, thud + 0.6);
+    k.connect(kg);
+    kg.connect(this.out);
+    kg.connect(this.reverb);
+    k.start(thud);
+    k.stop(thud + 0.65);
+    // 쿵에 섞이는 둔탁한 잔해 소리
+    const rub = c.createBufferSource();
+    rub.buffer = sound.noise;
+    const rlp = c.createBiquadFilter();
+    rlp.type = 'lowpass';
+    rlp.frequency.value = 400;
+    const rg = c.createGain();
+    rg.gain.setValueAtTime(vol * 1.2, thud);
+    rg.gain.exponentialRampToValueAtTime(0.0001, thud + 0.35);
+    rub.connect(rlp).connect(rg);
+    rg.connect(this.out);
+    rg.connect(this.reverb);
+    rub.start(thud, Math.random() * 0.5, 0.4);
+
+    this.later(() => this.scheduleCreak(), 18000 + Math.random() * 14000);
+  },
+
+  /** 쇠파이프끼리 부딪히는 "깡… 깡… 깡…" (12~25초에 한 번, 2~4번 연달아 점점 작게) */
+  scheduleClank() {
+    const c = this.ctx;
+    const f = 260 + Math.random() * 180;
+    const hits = 2 + Math.floor(Math.random() * 3);
+    const gap = 0.55 + Math.random() * 0.35;
+    for (let h = 0; h < hits; h++) {
+      const t = c.currentTime + h * gap * (1 + h * 0.08);
+      const vol = CONFIG_SFX.clankVol * Math.pow(0.7, h);
+      this.clank(t, f * (1 - h * 0.01), vol);
+    }
+    this.later(() => this.scheduleClank(), 12000 + Math.random() * 13000);
+  },
+
+  /** 쇠파이프 한 번 "깡": 짧은 충격음이 파이프 고유 울림 몇 개를 짧게 울림 (종처럼 길게 안 끌림) */
+  clank(t, f, vol) {
+    const c = this.ctx;
+    // 1) 맞부딪히는 순간의 금속성 충격 (잡음 + 파이프 공명 필터)
+    const s = c.createBufferSource();
+    s.buffer = sound.noise;
+    const hit = c.createGain();
+    hit.gain.setValueAtTime(vol * 3, t);
+    hit.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    s.connect(hit);
+    [[1, 18, 0.35], [2.6, 22, 0.22], [4.9, 26, 0.14]].forEach(([m, q, len]) => {
+      const bp = c.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = f * m;
+      bp.Q.value = q;
+      const g = c.createGain();
+      g.gain.setValueAtTime(1, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      hit.connect(bp).connect(g);
+      g.connect(this.out);
+      g.connect(this.reverb);
+    });
+    s.start(t, Math.random() * 0.5, 0.08);
+
+    // 2) 속이 빈 파이프 몸통 울림: 짧게 끊기는 "깡"
+    const o = c.createOscillator();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(f * 1.02, t);
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.05);
+    const og = c.createGain();
+    og.gain.setValueAtTime(vol * 0.7, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    o.connect(og);
+    og.connect(this.out);
+    og.connect(this.reverb);
+    o.start(t);
+    o.stop(t + 0.3);
+  },
+
+  /** 탭이 숨겨져 있거나 음소거면 예약을 미룸 (소리가 쌓이지 않게) */
+  later(fn, ms) {
+    setTimeout(() => {
+      if (document.hidden || sound.bgmMuted) this.later(fn, 1000);
+      else fn();
+    }, ms);
+  },
+
+  setMuted(m) {
+    if (this.bus) this.bus.gain.setTargetAtTime(m ? 0 : 1, this.ctx.currentTime, 0.3);
+  },
+
+  /** 높이에 따라 바람 소리를 조금씩 높고 밝게 (0 = 시작층, 1 = 꼭대기) */
+  setHeight(t) {
+    if (!this.windFilter) return;
+    this.windFilter.Q.setTargetAtTime(6 - t * 2.5, this.ctx.currentTime, 1.5);
+    this.out.gain.setTargetAtTime(BGM_VOLUME * (1 + t * 0.15), this.ctx.currentTime, 2);
+  },
+};
+
+function updateSoundBtns() {
+  sfxBtn.classList.toggle('off', sound.sfxMuted);
+  bgmBtn.classList.toggle('off', sound.bgmMuted);
+  sfxBtn.title = sound.sfxMuted ? '효과음 켜기' : '효과음 끄기';
+  bgmBtn.title = sound.bgmMuted ? '배경음 켜기' : '배경음 끄기';
 }
 
 /* ─── 결과 이미지 저장 / 공유 (외부 API 없이 브라우저 기능만 사용) ─── */
@@ -1201,7 +1744,7 @@ function prepareShareImage(info) {
   const listTop = y;
   y += rows.length * ROW_H + (rows.length - 1) * 2;
   const footY = y + 22;
-  const SCREEN_H = footY + 16;
+  const SCREEN_H = footY + 16 + 16;
   const W = (TABLET_W + OUT * 2) * S;
   const H = (SCREEN_H + BEZEL * 2 + OUT * 2) * S;
 
@@ -1341,7 +1884,9 @@ function prepareShareImage(info) {
   // 게임 이름
   g.textAlign = 'center';
   g.fillStyle = '#6b7484';
-  g.fillText('끝없는 계단 · 어두운 바다의 등불이 되어 팬게임', cx, footY);
+  const [foot1, foot2] = footerLines();
+  g.fillText(foot1, cx, footY);
+  g.fillText(foot2, cx, footY + 16);
   g.restore();
 
   try {
@@ -1363,7 +1908,7 @@ async function saveOrShare() {
   const file = new File([shareBlob], `endless-stairs-${Date.now()}.png`, { type: 'image/png' });
   try {
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: '끝없는 계단' });
+      await navigator.share({ files: [file], title: GAME_TITLE });
       return;
     }
   } catch (err) {
@@ -1446,6 +1991,7 @@ function startGame() {
   state.phase = 'playing';
   startScreen.classList.add('hidden');
   gameoverScreen.classList.add('hidden');
+  soundToggles.classList.remove('hidden');
   hudEl.classList.remove('hidden');
   touchControls.classList.remove('hidden');
 }
@@ -1456,6 +2002,7 @@ function reachSummit(plat) {
   state.summitTimeMs = Math.round(state.elapsed);
   state.door = { x: plat.doorX, y: plat.y };
   showToast('꼭대기 도착! 문으로 가자', CONFIG.TOAST_MS);
+  sound.play('summit');
 }
 
 function checkDoor() {
@@ -1477,6 +2024,7 @@ function checkDoor() {
       endX: clipX + dir * (CONFIG.CHAR_W / 2 + 2),
     };
     state.exiting = true;
+    sound.play('door');
     state.exitShotTaken = false;
     state.exitT = state.now;
     state.cleared = true;
@@ -1501,7 +2049,6 @@ function endGame(reason) {
 
   const prevBest = loadBest();
   const isNewBest = isBetter(result, prevBest);
-  const best = isNewBest ? result : prevBest;
   if (isNewBest) storage.set(STORAGE_KEYS.best + CONFIG.DIFFICULTY, JSON.stringify(result));
 
   const nickname = storage.get(STORAGE_KEYS.nickname, '') || '이름없음';
@@ -1513,23 +2060,20 @@ function endGame(reason) {
   const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
 
   photoStamp.classList.toggle('fail', !cleared);
-  gameoverSub.textContent = isNewBest ? '★ 최고 기록 ★' : '';
-  gameoverSub.classList.toggle('hidden', !isNewBest);
   photoStamp.textContent = `${floorOf(result.stairs)}층!`;
 
   recName.textContent = `${nickname}#${tag}`;
   recChar.textContent = getCharacter(state.selectedChar).name;
   profileImg.src = spritePath(getCharacter(state.selectedChar), 'left_stand');
-  recMode.textContent = `${CONFIG.DIFFICULTY} · ${DIFFICULTY_NAMES[CONFIG.DIFFICULTY]}`;
+  recMode.textContent = DIFFICULTY_NAMES[CONFIG.DIFFICULTY];
   recStairs.textContent = `${result.stairs.toLocaleString()} / ${CONFIG.GOAL_STAIRS.toLocaleString()}`;
   recTime.textContent = formatRecord(result.timeMs);
-  recBest.textContent = formatResult(best);
-  photoCaption.textContent = `${getCharacter(state.selectedChar).name} · ${date} ${time}`;
+  photoCaption.textContent = `${date} ${time}`;
   developPhoto();
   prepareShareImage({
     floor: floorOf(result.stairs),
     cleared,
-    isNewBest,
+    isNewBest: false,  // 결과 화면에서 최고 기록 표시는 뺌 (기록 저장은 랭킹용으로 계속 함)
     caption: photoCaption.textContent,
   });
 
@@ -1537,13 +2081,17 @@ function endGame(reason) {
   //      정렬: stairs DESC, time_ms ASC
 
   // 문 통과 → 결과 표시 (엔딩 연출은 나중에 여기에)
-  setTimeout(() => gameoverScreen.classList.remove('hidden'), cleared ? 200 : 600);
+  setTimeout(() => {
+    gameoverScreen.classList.remove('hidden');
+    soundToggles.classList.add('hidden');  // 결과 태블릿과 겹쳐서 숨김
+  }, cleared ? 200 : 600);
 }
 
 function goToTitle() {
   state.phase = 'title';
   resetGame(true);
   gameoverScreen.classList.add('hidden');
+  soundToggles.classList.remove('hidden');
   hudEl.classList.add('hidden');
   touchControls.classList.add('hidden');
   startScreen.classList.remove('hidden');
@@ -1608,7 +2156,6 @@ function selectDifficulty(level) {
   diffGrid.querySelectorAll('.diff_btn').forEach(el => {
     el.classList.toggle('selected', Number(el.dataset.level) === CONFIG.DIFFICULTY);
   });
-  diffHint.textContent = DIFFICULTY_HINTS[CONFIG.DIFFICULTY];
   resetGame(true);
 }
 
@@ -1633,6 +2180,29 @@ function handleStart() {
 startBtn.addEventListener('click', handleStart);
 restartBtn.addEventListener('click', startGame);
 titleBtn.addEventListener('click', goToTitle);
+
+// 소리: 첫 클릭/터치/키 입력 때 준비. 버튼 누를 때 "톡"
+['pointerdown', 'keydown'].forEach(type => {
+  document.addEventListener(type, () => sound.unlock(), { capture: true });
+});
+document.addEventListener('click', e => {
+  if (e.target.closest('button') && !e.target.closest('.sound_btn')) sound.play('click');
+});
+sfxBtn.addEventListener('click', () => {
+  sound.unlock();
+  sound.toggleSfx();
+  sfxBtn.blur();
+});
+bgmBtn.addEventListener('click', () => {
+  sound.unlock();
+  sound.toggleBgm();
+  bgmBtn.blur();
+});
+updateSoundBtns();
+footerLines().forEach((line, i) => {
+  if (i) tabletFoot.appendChild(document.createElement('br'));
+  tabletFoot.appendChild(document.createTextNode(line));
+});
 saveBtn.addEventListener('click', saveOrShare);
 
 nicknameInput.addEventListener('keydown', e => {

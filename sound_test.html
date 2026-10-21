@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>효과음 테스트</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css" />
+    <style>
+      :root {
+        --ink: #141a22;
+        --cream: #fff4dc;
+        --yellow: #ffd23f;
+        --pink: #ff8fab;
+        --sub: #6b7484;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: #1b2027;
+        color: var(--ink);
+        font-family: "Galmuri11", monospace;
+        padding: 24px 16px 60px;
+      }
+      h1 {
+        font-family: "Galmuri14", monospace;
+        font-size: 28px;
+        color: var(--yellow);
+        text-align: center;
+        margin-bottom: 8px;
+      }
+      .desc {
+        color: #c9d0d8;
+        font-size: 11px;
+        text-align: center;
+        line-height: 1.8;
+        margin-bottom: 20px;
+      }
+      .bar {
+        max-width: 720px;
+        margin: 0 auto 20px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: center;
+        color: #c9d0d8;
+        font-size: 11px;
+      }
+      .grid {
+        max-width: 720px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 20px;
+      }
+      .card {
+        background: var(--cream);
+        padding: 14px 14px 12px;
+        box-shadow: 0 -4px 0 var(--ink), 0 4px 0 var(--ink), -4px 0 0 var(--ink), 4px 0 0 var(--ink);
+      }
+      .card_head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+      .card h2 {
+        font-family: "Galmuri14", monospace;
+        font-size: 14px;
+      }
+      .card p {
+        font-size: 11px;
+        color: var(--sub);
+        margin-bottom: 10px;
+      }
+      button {
+        font-family: inherit;
+        font-size: 11px;
+        border: none;
+        cursor: pointer;
+        padding: 7px 12px;
+        background: var(--yellow);
+        color: var(--ink);
+        box-shadow: 0 0 0 2px var(--ink), 0 3px 0 2px var(--ink);
+      }
+      button:active { transform: translateY(2px); box-shadow: 0 0 0 2px var(--ink); }
+      button.ghost { background: #fff; }
+      textarea {
+        width: 100%;
+        min-height: 92px;
+        font-family: "GalmuriMono11", monospace;
+        font-size: 11px;
+        line-height: 1.5;
+        padding: 8px;
+        border: none;
+        background: #fff;
+        box-shadow: 0 0 0 2px #c9c2b6;
+        resize: vertical;
+      }
+      textarea.error { box-shadow: 0 0 0 2px #d9607f; }
+      .card_foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 8px;
+        font-size: 11px;
+        color: var(--sub);
+      }
+      .help {
+        max-width: 720px;
+        margin: 28px auto 0;
+        background: #262c35;
+        color: #c9d0d8;
+        padding: 14px 16px;
+        font-size: 11px;
+        line-height: 1.9;
+      }
+      .help b { color: var(--yellow); }
+      input[type="range"] { accent-color: var(--yellow); }
+    </style>
+  </head>
+  <body>
+    <h1>효과음 테스트</h1>
+    <p class="desc">
+      파일 없이 코드로 만드는 8비트 효과음이에요.<br />
+      ▶ 를 눌러 듣고, 숫자를 고친 뒤 다시 들어보세요. 마음에 들면 "코드 복사".
+    </p>
+
+    <div class="bar">
+      <label>전체 볼륨 <input type="range" id="master" min="0" max="1" step="0.05" value="0.6" /></label>
+      <button type="button" class="ghost" id="playAll">전부 이어 듣기</button>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <div class="help">
+      <b>숫자 읽는 법</b> — 소리 하나는 여러 겹(layer)으로 되어 있어요.<br />
+      wave: 소리 색깔. square(8비트 삑), triangle(부드러운 삑), sawtooth(거친 소리), sine(맑은 소리), noise(치익/부서지는 소리)<br />
+      from → to: 시작 음높이 → 끝 음높이 (Hz). 높을수록 고음. 올라가면 "뿅", 내려가면 "뚝"<br />
+      time: 길이(초) · vol: 크기(0~1) · delay: 이 겹이 시작되기까지 기다리는 시간(초)<br />
+      wobble: 음이 떨리는 정도 (스프링 "띠요옹" 느낌) · cut: noise일 때 소리를 둔하게 깎는 정도(Hz, 낮을수록 둔탁)
+    </div>
+
+    <script>
+      'use strict';
+
+      /* ─── 효과음 목록 (게임에 그대로 옮겨 쓸 수 있는 형식) ─── */
+      const SOUNDS = {
+        jump: {
+          name: '점프',
+          desc: '계단을 밟고 튀어오를 때. 자주 나니까 짧고 작게',
+          layers: [{ wave: 'square', from: 320, to: 640, time: 0.08, vol: 0.12 }],
+        },
+        spring: {
+          name: '스프링',
+          desc: '스프링 밟았을 때 "띠요옹"',
+          layers: [{ wave: 'square', from: 180, to: 900, time: 0.32, vol: 0.14, wobble: 40 }],
+        },
+        land: {
+          name: '착지 (꼭대기 바닥)',
+          desc: '꼭대기 바닥에 처음 내려설 때 "쿵"',
+          layers: [
+            { wave: 'triangle', from: 160, to: 50, time: 0.12, vol: 0.3 },
+            { wave: 'noise', from: 0, to: 0, time: 0.08, vol: 0.12, cut: 600 },
+          ],
+        },
+        crumble: {
+          name: '무너지는 계단',
+          desc: '시멘트가 부서지며 떨어질 때 "뿌직"',
+          layers: [
+            { wave: 'noise', from: 0, to: 0, time: 0.3, vol: 0.22, cut: 1400 },
+            { wave: 'square', from: 140, to: 60, time: 0.18, vol: 0.06 },
+          ],
+        },
+        floor: {
+          name: '층 통과 (30층마다)',
+          desc: '팝업 뜰 때 "띵-동"',
+          layers: [
+            { wave: 'square', from: 660, to: 660, time: 0.1, vol: 0.12 },
+            { wave: 'square', from: 990, to: 990, time: 0.18, vol: 0.12, delay: 0.1 },
+          ],
+        },
+        summit: {
+          name: '꼭대기 도착',
+          desc: '180층 도착 "빠바바밤"',
+          layers: [
+            { wave: 'square', from: 523, to: 523, time: 0.1, vol: 0.12 },
+            { wave: 'square', from: 659, to: 659, time: 0.1, vol: 0.12, delay: 0.1 },
+            { wave: 'square', from: 784, to: 784, time: 0.1, vol: 0.12, delay: 0.2 },
+            { wave: 'square', from: 1046, to: 1046, time: 0.3, vol: 0.12, delay: 0.3 },
+          ],
+        },
+        door: {
+          name: '문 열림',
+          desc: '문에 닿았을 때 "끼이익" + 반짝',
+          layers: [
+            { wave: 'sawtooth', from: 220, to: 160, time: 0.35, vol: 0.06, wobble: 12 },
+            { wave: 'triangle', from: 880, to: 1760, time: 0.25, vol: 0.1, delay: 0.25 },
+          ],
+        },
+        fall: {
+          name: '떨어짐',
+          desc: '화면 아래로 떨어질 때 "뾰로로롱"',
+          layers: [{ wave: 'square', from: 700, to: 70, time: 0.7, vol: 0.12, wobble: 25 }],
+        },
+        click: {
+          name: '버튼',
+          desc: '설정 화면 버튼 누를 때 "톡"',
+          layers: [{ wave: 'triangle', from: 880, to: 660, time: 0.04, vol: 0.15 }],
+        },
+      };
+
+      /* ─── 소리 엔진 ─── */
+      let audio = null;
+      let master = null;
+      let noiseBuffer = null;
+
+      function ensureAudio() {
+        if (audio) return;
+        audio = new (window.AudioContext || window.webkitAudioContext)();
+        master = audio.createGain();
+        master.gain.value = Number(document.getElementById('master').value);
+        master.connect(audio.destination);
+        // 치익 소리용 무작위 파형 1초
+        noiseBuffer = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      }
+
+      function playLayer(L, start) {
+        const t = start + (L.delay || 0);
+        const amp = audio.createGain();
+        amp.gain.setValueAtTime(L.vol, t);
+        amp.gain.exponentialRampToValueAtTime(0.0001, t + L.time);
+        amp.connect(master);
+
+        if (L.wave === 'noise') {
+          const src = audio.createBufferSource();
+          src.buffer = noiseBuffer;
+          const filter = audio.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(L.cut || 2000, t);
+          filter.frequency.exponentialRampToValueAtTime(Math.max(80, (L.cut || 2000) / 5), t + L.time);
+          src.connect(filter).connect(amp);
+          src.start(t);
+          src.stop(t + L.time);
+          return;
+        }
+
+        const osc = audio.createOscillator();
+        osc.type = L.wave;
+        osc.frequency.setValueAtTime(Math.max(1, L.from), t);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(1, L.to), t + L.time);
+        if (L.wobble) {
+          const lfo = audio.createOscillator();
+          const depth = audio.createGain();
+          lfo.frequency.value = 28;
+          depth.gain.value = L.wobble;
+          lfo.connect(depth).connect(osc.frequency);
+          lfo.start(t);
+          lfo.stop(t + L.time);
+        }
+        osc.connect(amp);
+        osc.start(t);
+        osc.stop(t + L.time);
+      }
+
+      function play(layers) {
+        ensureAudio();
+        const now = audio.currentTime + 0.01;
+        layers.forEach(L => playLayer(L, now));
+        return layers.reduce((m, L) => Math.max(m, (L.delay || 0) + L.time), 0);
+      }
+
+      /* ─── 화면 ─── */
+      const grid = document.getElementById('grid');
+      const editors = {};
+
+      function readLayers(key) {
+        const ta = editors[key];
+        try {
+          const layers = JSON.parse(ta.value);
+          ta.classList.remove('error');
+          return layers;
+        } catch {
+          ta.classList.add('error');
+          return null;
+        }
+      }
+
+      Object.entries(SOUNDS).forEach(([key, s]) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card_head">
+            <h2></h2>
+            <button type="button">▶ 듣기</button>
+          </div>
+          <p></p>
+          <textarea spellcheck="false"></textarea>
+          <div class="card_foot">
+            <span class="key"></span>
+            <button type="button" class="ghost">코드 복사</button>
+          </div>`;
+        card.querySelector('h2').textContent = s.name;
+        card.querySelector('p').textContent = s.desc;
+        card.querySelector('.key').textContent = key;
+        const ta = card.querySelector('textarea');
+        ta.value = JSON.stringify(s.layers, null, 1).replace(/\n\s*(?=[^\[{])/g, ' ');
+        editors[key] = ta;
+
+        const [playBtn, copyBtn] = card.querySelectorAll('button');
+        playBtn.addEventListener('click', () => {
+          const layers = readLayers(key);
+          if (layers) play(layers);
+        });
+        copyBtn.addEventListener('click', async () => {
+          const layers = readLayers(key);
+          if (!layers) return;
+          const text = `${key}: ${JSON.stringify(layers)},`;
+          try {
+            await navigator.clipboard.writeText(text);
+            copyBtn.textContent = '복사됨!';
+          } catch {
+            prompt('복사해서 쓰세요', text);
+          }
+          setTimeout(() => { copyBtn.textContent = '코드 복사'; }, 1200);
+        });
+        grid.appendChild(card);
+      });
+
+      document.getElementById('master').addEventListener('input', e => {
+        if (master) master.gain.value = Number(e.target.value);
+      });
+
+      document.getElementById('playAll').addEventListener('click', async () => {
+        for (const key of Object.keys(SOUNDS)) {
+          const layers = readLayers(key);
+          if (!layers) continue;
+          const len = play(layers);
+          await new Promise(r => setTimeout(r, (len + 0.35) * 1000));
+        }
+      });
+    </script>
+  </body>
+</html>

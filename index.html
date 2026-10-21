@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
-    <title>끝없는 계단 (가제)</title>
+    <title>제목지어주세요ㅜㅜ</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css" />
     <link rel="stylesheet" href="style.css" />
   </head>
@@ -21,7 +21,7 @@
           <span class="hud_label">층</span>
           <span class="hud_value" id="floorDisplay">1층</span>
         </div>
-        <div class="hud_item px_box">
+        <div class="hud_item wide px_box">
           <span class="hud_label">계단</span>
           <span class="hud_value" id="stairsDisplay">0/4800</span>
         </div>
@@ -29,6 +29,16 @@
           <span class="hud_label">시간</span>
           <span class="hud_value" id="timeDisplay">0:00</span>
         </div>
+      </div>
+
+      <!-- 소리 켜기/끄기 -->
+      <div class="sound_toggles" id="soundToggles">
+        <button type="button" class="sound_btn px_box" id="sfxBtn" aria-label="효과음 켜기/끄기">
+          <span class="sound_icon">♪</span><span class="sound_label">효과음</span>
+        </button>
+        <button type="button" class="sound_btn px_box" id="bgmBtn" aria-label="배경음 켜기/끄기">
+          <span class="sound_icon">♫</span><span class="sound_label">배경음</span>
+        </button>
       </div>
 
       <!-- 안내 말풍선 -->
@@ -44,48 +54,32 @@
       <div class="start_screen" id="startScreen">
         <div class="start_card px_box">
           <p class="start_eyebrow">어두운 바다의 등불이 되어 팬게임</p>
-          <h1 class="start_title">끝없는 계단</h1>
-          <p class="start_desc">
-            난간 없는 계단을 밟고 뛰어올라<br />
-            4800계단 꼭대기 문까지 가자!
+          <h1 class="start_title" id="startTitle">제목지어주세요ㅜㅜ</h1>
+
+          <div class="nickname_row">
+            <input
+              type="text"
+              id="nicknameInput"
+              class="nickname_input"
+              maxlength="12"
+              placeholder="닉네임 (1~12자)"
+              autocomplete="off"
+              spellcheck="false"
+              aria-label="닉네임"
+            />
+            <span class="player_tag" id="playerTag">#0000</span>
+          </div>
+
+          <div class="char_grid" id="charGrid" aria-label="캐릭터 선택"></div>
+          <p class="sel_name">
+            <small>나머지는 뒤에서 따라와요</small>
           </p>
 
-          <div class="setting_block">
-            <label class="setting_label" for="nicknameInput">닉네임</label>
-            <div class="nickname_row">
-              <input
-                type="text"
-                id="nicknameInput"
-                class="nickname_input"
-                maxlength="12"
-                placeholder="1~12자"
-                autocomplete="off"
-                spellcheck="false"
-              />
-              <span class="player_tag" id="playerTag">#0000</span>
-            </div>
-          </div>
-
-          <div class="setting_block">
-            <span class="setting_label">캐릭터</span>
-            <div class="char_grid" id="charGrid"></div>
-            <p class="setting_hint">선택하지 않은 캐릭터는 뒤를 졸졸 따라와요</p>
-          </div>
-
-          <div class="setting_block">
-            <span class="setting_label">난이도</span>
-            <div class="diff_grid" id="diffGrid"></div>
-            <p class="setting_hint" id="diffHint"></p>
-          </div>
-
-          <div class="start_instructions">
-            <div class="instruction_item"><span class="key_cap">←</span><span class="key_cap">→</span> 누르고 있으면 이동</div>
-            <div class="instruction_item"><span class="key_cap">터치</span> 화면 왼쪽 / 오른쪽 누르기</div>
-            <div class="instruction_item"><span class="key_cap">!</span> 계단을 놓쳐 떨어지면 끝</div>
-          </div>
+          <div class="diff_grid" id="diffGrid" aria-label="난이도 선택"></div>
 
           <p class="start_error" id="startError"></p>
           <button type="button" class="start_btn px_btn" id="startBtn">오르기 시작</button>
+          <p class="mini_help">← → 키 또는 화면 왼쪽/오른쪽을 눌러 이동</p>
         </div>
       </div>
 
@@ -102,7 +96,6 @@
                 <span class="photo_stamp" id="photoStamp">1층!</span>
               </div>
 
-              <p class="gameover_sub" id="gameoverSub"></p>
 
               <div class="profile_row">
                 <span class="profile_pic"><img id="profileImg" alt="" /></span>
@@ -113,10 +106,9 @@
               </div>
 
               <ul class="record_list">
-                <li><span class="record_key">모드</span><span class="record_val" id="recMode"></span></li>
-                <li><span class="record_key">계단</span><span class="record_val" id="recStairs"></span></li>
-                <li><span class="record_key">시간</span><span class="record_val" id="recTime"></span></li>
-                <li><span class="record_key">최고</span><span class="record_val" id="recBest"></span></li>
+                <li><span class="record_key">난이도</span><span class="record_val" id="recMode"></span></li>
+                <li><span class="record_key">오른 계단</span><span class="record_val" id="recStairs"></span></li>
+                <li><span class="record_key">소요 시간</span><span class="record_val" id="recTime"></span></li>
               </ul>
 
               <!-- [DB] 랭킹 등록 / 랭킹 탭 (2차 작업) -->
@@ -125,6 +117,7 @@
                 <button type="button" class="title_btn px_btn" id="titleBtn">처음으로</button>
               </div>
               <button type="button" class="save_btn" id="saveBtn">▼ 사진 저장 / 공유</button>
+              <p class="tablet_foot" id="tabletFoot"></p>
             </div>
           </div>
         </div>
