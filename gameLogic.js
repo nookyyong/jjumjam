@@ -22,7 +22,7 @@ const SPRITE_POSES = ['right_stand', 'left_stand', 'right_jump', 'left_jump', 'r
 const spritePath = (ch, pose) => `images/${ch.key}_${pose}.png`;
 
 /* ─── 제목 / 표기 ─── */
-const GAME_TITLE = '제목지어주세요ㅜㅜ';
+const GAME_TITLE = '제목지어주세요ㅜㅜ'; 
 const GAME_SUBTITLE = '어두운 바다의 등불이 되어 팬게임';
 const CREDIT = '';  // 제작자 표기 (예: 'jnj'). 비워두면 표시 안 함
 
