@@ -33,9 +33,10 @@ const SPRITE_POSES = ['right_stand', 'left_stand', 'right_jump', 'left_jump', 'r
 const spritePath = (ch, pose) => `images/${ch.key}_${pose}.png`;
 
 /* ─── 제목 / 표기 ─── */
-const GAME_TITLE = '제목지어주세요ㅜㅜ';
+const GAME_TITLE = '아등바등';
 const GAME_SUBTITLE = '어두운 바다의 등불이 되어 팬게임';
-const CREDIT = '보리';  // 제작자 표기 (예: 'jnj'). 비워두면 표시 안 함
+const CREDIT = '@hardycrops';  // 제작자 표기. 비워두면 표시 안 함
+const CREDIT_URL = 'https://bsky.app/profile/hardycrops.bsky.social';
 
 /* ─── 게임 설정 ─── */
 const CONFIG = {
@@ -1332,6 +1333,36 @@ function footerLines() {
   return [[GAME_TITLE, CREDIT && `by ${CREDIT}`].filter(Boolean).join(' · '), GAME_SUBTITLE];
 }
 
+/** 결과 화면 맨 아래: 제목 · by 제작자(누르면 CREDIT_URL) / 부제 */
+function renderFooter() {
+  tabletFoot.textContent = '';
+  tabletFoot.append(GAME_TITLE);
+  if (CREDIT) {
+    tabletFoot.append(' · ');
+    const url = safeCreditUrl();
+    const el = document.createElement(url ? 'a' : 'span');
+    el.textContent = `by ${CREDIT}`;
+    if (url) {
+      el.href = url;
+      el.target = '_blank';            // 새 탭 → 게임 결과창은 그대로 남음
+      el.rel = 'noopener noreferrer';  // 새 탭이 게임 페이지를 건드리지 못하게, 어디서 왔는지 안 넘김
+      el.className = 'credit_link';
+    }
+    tabletFoot.append(el);
+  }
+  tabletFoot.append(document.createElement('br'), GAME_SUBTITLE);
+}
+
+/** https://bsky.app 주소만 링크로 씀 (오타나 다른 주소면 링크 없이 글자만) */
+function safeCreditUrl() {
+  try {
+    const u = new URL(CREDIT_URL);
+    return u.protocol === 'https:' && u.hostname === 'bsky.app' ? u.href : '';
+  } catch {
+    return '';
+  }
+}
+
 /* ─── 효과음 (파일 없이 Web Audio로 합성. 값은 sound_test.html에서 조절해서 붙여넣기) ─── */
 const SFX = {
   jump:    [{ wave: 'square', from: 320, to: 640, time: 0.08, vol: 0.12 }],
@@ -2449,10 +2480,7 @@ bgmBtn.addEventListener('click', () => {
   bgmBtn.blur();
 });
 updateSoundBtns();
-footerLines().forEach((line, i) => {
-  if (i) tabletFoot.appendChild(document.createElement('br'));
-  tabletFoot.appendChild(document.createTextNode(line));
-});
+renderFooter();
 saveBtn.addEventListener('click', saveImage);
 
 nicknameInput.addEventListener('keydown', e => {
