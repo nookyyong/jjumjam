@@ -1361,6 +1361,8 @@ const sound = {
 
   /** 브라우저 정책상 클릭/키 입력 뒤에만 소리를 낼 수 있어서 첫 입력 때 준비 */
   unlock() {
+    // 아이폰: 첫 터치(pointerdown)에선 재생이 막혀서 무음 오디오가 실패할 수 있음 → 다음 입력(touchend/click) 때 다시 시도
+    if (this.silentMedia && this.silentMedia.paused) this.silentMedia.play().catch(() => {});
     if (this.ctx) {
       if (this.ctx.state === 'suspended') this.ctx.resume();
       return;
