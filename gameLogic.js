@@ -34,7 +34,7 @@ const spritePath = (ch, pose) => `images/${ch.key}_${pose}.png`;
 
 /* ─── 제목 / 표기 ─── */
 const GAME_TITLE = '아등바등';
-const GAME_SUBTITLE = '어두운 바다의 등불이 되어 팬게임';
+const GAME_SUBTITLE = '<어두운 바다의 등불이 되어> 비공식 팬게임';  // 설정 화면 위 띠는 index.html에서 따로
 const CREDIT = '@hardycrops';  // 제작자 표기. 비워두면 표시 안 함
 const CREDIT_URL = 'https://bsky.app/profile/hardycrops.bsky.social';
 
@@ -1437,6 +1437,7 @@ function footerLines() {
 /** 결과 화면 맨 아래: 제목 · by 제작자(누르면 CREDIT_URL) / 부제 */
 function renderFooter() {
   tabletFoot.textContent = '';
+  tabletFoot.append(GAME_SUBTITLE, document.createElement('br'));
   tabletFoot.append(GAME_TITLE);
   if (CREDIT) {
     tabletFoot.append(' · by ');  // 'by'는 링크 밖 (점선 없이)
@@ -1451,7 +1452,6 @@ function renderFooter() {
     }
     tabletFoot.append(el);
   }
-  tabletFoot.append(document.createElement('br'), GAME_SUBTITLE);
 }
 
 /** https://bsky.app 주소만 링크로 씀 (오타나 다른 주소면 링크 없이 글자만) */
@@ -2167,9 +2167,7 @@ function prepareShareImage(info) {
   // 게임 이름
   g.textAlign = 'center';
   g.fillStyle = '#6b7484';
-  const [foot1, foot2] = footerLines();
-  g.fillText(foot1, cx, footY);
-  g.fillText(foot2, cx, footY + 16);
+  footerLines().forEach((line, i) => g.fillText(line, cx, footY + i * 16));
   g.restore();
 
   try {
