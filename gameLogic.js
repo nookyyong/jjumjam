@@ -16,7 +16,7 @@ const CHARACTERS = [
   { id: 'c4', key: 'char4', name: '백애영', color: '#7ad4b0' },
   { id: 'c5', key: 'char5', name: '유금이', color: '#7ac4f0' },
   // STAGE 2 (if 모드) 전용. heavy: 둔탁하고 묵직한 효과음
-  { id: 'c6', key: 'char6', name: '정상현', color: '#c9a27a', heavy: true },
+  { id: 'c6', key: 'char6', name: '정상현', color: '#c9a27a', heavy: true, walkPose: 'jump' },
 ];
 
 /* ─── 스테이지 ─── */
@@ -74,6 +74,7 @@ const CONFIG = {
   SAFE_REACH_Y: 165,     // 꼭대기 바닥까지 마지막 계단에서 닿을 수 있는 최대 높이 (점프 최고 높이 약 187)
   NO_CRUMBLE_START: 400, // 시작 바닥에서 이 높이까지는 무너지는 계단 없음
   MOVING_HITS: 3,        // if 모드: 움직이는 계단을 몇 번 밟으면 부러지는지
+  IF_PATROL: 80,         // if 모드: '무너지는 계단 바로 다음 움직이는 계단'만 생긴 자리에서 좌우로 이만큼만 오감 (기다릴 곳이 없어서 못 깨는 판 방지)
   SPRING_W: 24,          // 이미지 10px
 
   // 캐릭터
@@ -116,8 +117,9 @@ const DIFFICULTY_PRESETS = {
   4: { PX_PER_STAIR: 5.25, GAP_MIN: [40, 85], GAP_MAX: [100, 165], MOVING_CHANCE: [0.05, 0.32], CRUMBLE_CHANCE: [0.10, 0.35], SPRING_CHANCE: 0.05, MOVING_SPEED: [70, 170], PLAT_W: [67.2, 52.8] },
   5: { PX_PER_STAIR: 6, GAP_MIN: [45, 95], GAP_MAX: [110, 172], MOVING_CHANCE: [0.06, 0.35], CRUMBLE_CHANCE: [0.12, 0.40], SPRING_CHANCE: 0.04, MOVING_SPEED: [80, 190], PLAT_W: [62.4, 43.2] },
 };
-// 6: if 모드 (STAGE 2) — 지옥 기준, 일반 계단 없음 (스프링 / 움직이는 계단 / 무너지는 계단만)
-//    움직이는 계단은 세 번 밟으면 부러짐 (CONFIG.MOVING_HITS)
+// 6: if 모드 (STAGE 2) — 지옥과 같은 값, 일반 계단 대신 무너지는 계단 (움직이는 계단 / 무너지는 계단만)
+//    움직이는 계단은 세 번 밟으면 부러짐 (CONFIG.MOVING_HITS), 무너지는 계단에도 스프링이 붙음
+//    무너지는 계단 바로 다음 움직이는 계단만 ±IF_PATROL 안에서 오감
 DIFFICULTY_PRESETS[6] = { ...DIFFICULTY_PRESETS[5], IF_MODE: true };
 const DIFFICULTY_NAMES = { 1: '연습', 2: '쉬움', 3: '보통', 4: '어려움', 5: '지옥', 6: '그치만 if...' };
 const DIFFICULTY_HINTS = {
@@ -228,6 +230,8 @@ const state = {
   platforms: [],
   genTopY: 0,            // 가장 위에 생성된 계단 높이
   genLastX: 0,           // 마지막으로 생성된 계단의 중심 x
+  genLastR: 0,           // 마지막으로 생성된 계단이 좌우로 오가는 거리 (if 모드 움직이는 계단)
+  genLastType: '',       // 마지막으로 생성된 계단 종류
   player: null,
   history: [],           // { t, x, y, dir, rising } — 따라오는 캐릭터가 지연 재생
   followers: [],
@@ -254,6 +258,10 @@ const state = {
   wantShot: null,        // 다음 렌더 후 찍을 사진 중심 { wx, wy }
   shot: null,            // 마지막으로 찍은 사진 { canvas, cx, cy } (결과 화면 폴라로이드용)
   shotArmed: true,       // 떨어지는 장면 사진을 한 번만 찍도록
+  celebrate: false,      // if 모드 꼭대기 축하 (폭죽 + 종이가루 계속)
+  rockets: [],           // 올라가는 중인 폭죽
+  nextRocketT: 0,
+  nextConfettiT: 0,
 };
 
 /* ─── DOM 참조 ─── */
@@ -440,9 +448,10 @@ function maxTravelX(gap) {
 }
 
 /** 이전 계단 기준으로 도달 가능한 범위 안에 다음 계단 x 결정 */
-function nextPlatformX(gap, platW, fromX) {
+function nextPlatformX(gap, platW, fromX, slack = 0) {
   const W = CONFIG.GAME_W;
-  const reach = maxTravelX(gap) * CONFIG.REACH_MARGIN + CONFIG.REACH_BONUS;
+  // slack: 움직이는 계단이 오가는 만큼 범위를 줄여서, 언제 도착해도 닿을 수 있게
+  const reach = Math.max(0, maxTravelX(gap) * CONFIG.REACH_MARGIN + CONFIG.REACH_BONUS - slack);
 
   // 화면 안에서만, 기준 계단(fromX)에서 reach 범위 안에서 고름
   const half = platW / 2;
@@ -466,8 +475,11 @@ function makePlatform(y, t, reachGap, fromX, crumble) {
 
   // 높이 올라갈수록 좁아짐 (픽셀 단위로 맞춤)
   const w = Math.round(lerp(CONFIG.PLAT_W_RANGE, t) / CONFIG.PIX) * CONFIG.PIX;
+  // if 모드 움직이는 계단: 화면 끝까지 안 가고 생긴 자리 근처(±patrol)만 오감
+  const reach = maxTravelX(reachGap) * CONFIG.REACH_MARGIN + CONFIG.REACH_BONUS;
+  const patrol = CONFIG.IF_MODE && type === 'moving' && state.genLastType === 'crumble' ? Math.min(CONFIG.IF_PATROL, Math.max(24, reach * 0.5)) : 0;
   const plat = {
-    x: nextPlatformX(reachGap, w, fromX),
+    x: nextPlatformX(reachGap, w, fromX, patrol + state.genLastR),
     y,
     w,
     type,
@@ -478,10 +490,15 @@ function makePlatform(y, t, reachGap, fromX, crumble) {
     alpha: 1,
     hits: 0,      // if 모드: 움직이는 계단 밟은 횟수
     hitT: -1e9,
+    patrol,
   };
 
   if (type === 'moving') {
     plat.vx = rand(CONFIG.MOVING_SPEED[0], CONFIG.MOVING_SPEED[1]) * (rng() < 0.5 ? -1 : 1);
+  }
+  if (patrol) {
+    plat.minX = Math.max(0, plat.x - patrol);
+    plat.maxX = Math.min(CONFIG.GAME_W - w, plat.x + patrol);
   }
   // 꼭대기 바로 아래에는 스프링 없음 (꼭대기 위로 튀어나가 화면이 어긋나는 것 방지)
   const nearGoal = y > GOAL_Y - 700;
@@ -530,6 +547,8 @@ function generatePlatforms() {
     state.platforms.push(plat);
     state.genTopY = y;
     state.genLastX = plat.x + plat.w / 2;
+    state.genLastR = plat.patrol;
+    state.genLastType = plat.type;
   }
 }
 
@@ -552,6 +571,8 @@ function resetGame(fixedLayout = false) {
   }];
   state.genTopY = startY;
   state.genLastX = CONFIG.GAME_W / 2;
+  state.genLastR = 0;
+  state.genLastType = 'floor';
 
   state.camBottom = startY - CONFIG.START_PAD;
 
@@ -582,6 +603,8 @@ function resetGame(fixedLayout = false) {
   state.exiting = false;
   state.exitT = 0;
   state.cleared = false;
+  state.celebrate = false;
+  state.rockets = [];
   generatePlatforms();
   updateHUD();
 }
@@ -668,6 +691,76 @@ function spawnDebris(plat) {
 }
 
 /** 층 통과 축하 종이가루 */
+/* ─── if 모드 꼭대기 축하: 폭죽 + 종이가루가 계속 터짐 (다시 오르기 / 처음으로 누르면 멈춤) ─── */
+const FIREWORK_COLORS = [
+  ['#ffd23f', '#fff4dc'],
+  ['#ff8fab', '#ffd23f'],
+  ['#6fe3c1', '#fff4dc'],
+  ['#7ac4f0', '#ffffff'],
+  ['#b08af0', '#ff8fab'],
+];
+
+function startCelebration() {
+  state.celebrate = true;
+  state.rockets = [];
+  state.nextRocketT = state.now;
+  state.nextConfettiT = state.now + 300;
+}
+
+function updateCelebration(dt) {
+  if (!state.celebrate) return;
+  const W = CONFIG.GAME_W;
+  const tooMany = state.particles.length > 700;  // 너무 많이 쌓이면 잠깐 쉼
+
+  // 폭죽 발사 (0.35~0.75초마다)
+  if (state.now >= state.nextRocketT && !tooMany) {
+    state.nextRocketT = state.now + rand(350, 750);
+    state.rockets.push({
+      x: rand(50, W - 50),
+      y: state.camBottom,
+      vy: rand(520, 680),
+      targetY: state.camBottom + viewLH * rand(0.5, 0.85),
+      colors: FIREWORK_COLORS[Math.floor(Math.random() * FIREWORK_COLORS.length)],
+    });
+    sound.play('launch');
+  }
+
+  // 양쪽 아래에서 종이가루 (0.9~1.5초마다)
+  if (state.now >= state.nextConfettiT && !tooMany) {
+    state.nextConfettiT = state.now + rand(900, 1500);
+    spawnConfetti(Math.random() < 0.5 ? 30 : W - 30, state.camBottom + 40);
+    sound.play('pop');
+  }
+
+  // 올라가는 폭죽: 꼬리 불꽃을 남기다가 목표 높이에서 터짐
+  for (const rk of state.rockets) {
+    rk.y += rk.vy * dt;
+    if (!tooMany) {
+      state.particles.push({ x: rk.x + rand(-1, 1), y: rk.y, vx: 0, vy: 0, g: -200, life: 0, max: 0.3, size: 2.4, color: '#ffe9a8' });
+    }
+    if (rk.y >= rk.targetY) {
+      rk.done = true;
+      burstFirework(rk);
+    }
+  }
+  state.rockets = state.rockets.filter(rk => !rk.done);
+}
+
+function burstFirework(rk) {
+  const n = 36;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + rand(-0.08, 0.08);
+    const sp = rand(140, 260);
+    state.particles.push({
+      x: rk.x, y: rk.y,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      g: -160, drag: 1.2, life: 0, max: rand(1.0, 1.5), size: i % 4 ? 4.8 : 7.2,
+      color: rk.colors[i % rk.colors.length],
+    });
+  }
+  sound.play('boom');
+}
+
 function spawnConfetti(x, y) {
   const colors = ['#ffd23f', '#ff8fab', '#6fe3c1', '#fff4dc'];
   for (let i = 0; i < 28; i++) {
@@ -724,6 +817,10 @@ function update(dt) {
     }
     const doneT = state.exitT + state.followers.length * CONFIG.FOLLOW_DELAY_MS + CONFIG.EXIT_SLIDE_MS + 300;
     if (state.phase === 'playing' && state.now >= doneT) endGame('clear');
+    if (state.celebrate) {  // 문 들어가는 중 / 결과 화면 뒤에서도 계속 터짐
+      updateCelebration(dt);
+      updateParticles(dt);
+    }
     updateHUD();
     return;
   }
@@ -754,8 +851,10 @@ function update(dt) {
   for (const plat of state.platforms) {
     if (plat.type === 'moving' && !plat.crumbling) {
       plat.x += plat.vx * dt;
-      if (plat.x < 0) { plat.x = 0; plat.vx *= -1; }
-      if (plat.x > W - plat.w) { plat.x = W - plat.w; plat.vx *= -1; }
+      const minX = plat.minX ?? 0;
+      const maxX = plat.maxX ?? W - plat.w;
+      if (plat.x < minX) { plat.x = minX; plat.vx = Math.abs(plat.vx); }
+      if (plat.x > maxX) { plat.x = maxX; plat.vx = -Math.abs(plat.vx); }
     }
     if (plat.crumbling) {
       plat.fallV += CONFIG.GRAVITY * dt;
@@ -821,6 +920,7 @@ function update(dt) {
   const keepFrom = state.now - (state.followers.length + 1) * CONFIG.FOLLOW_DELAY_MS - 200;
   while (state.history.length > 2 && state.history[1].t < keepFrom) state.history.shift();
 
+  updateCelebration(dt);
   updateParticles(dt);
 
   // 지나간 계단 정리 + 새 계단 생성
@@ -1136,7 +1236,8 @@ function drawCharacterAt(ch, lx, ly, dir, rising, walkFrame = false) {
   const w = CONFIG.CHAR_W;
   const h = CONFIG.CHAR_H;
   const side = dir < 0 ? 'left' : 'right';
-  let holder = ch.sprites[`${side}_${rising ? 'jump' : walkFrame ? 'walk' : 'stand'}`];
+  // walkPose: 걷기 프레임 대신 쓸 이미지 (정상현은 점프 이미지)
+  let holder = ch.sprites[`${side}_${rising ? 'jump' : walkFrame ? (ch.walkPose || 'walk') : 'stand'}`];
   if (walkFrame && !holder.ok) holder = ch.sprites[`${side}_stand`];
 
   ctx.save();
@@ -1338,10 +1439,10 @@ function renderFooter() {
   tabletFoot.textContent = '';
   tabletFoot.append(GAME_TITLE);
   if (CREDIT) {
-    tabletFoot.append(' · ');
+    tabletFoot.append(' · by ');  // 'by'는 링크 밖 (점선 없이)
     const url = safeCreditUrl();
     const el = document.createElement(url ? 'a' : 'span');
-    el.textContent = `by ${CREDIT}`;
+    el.textContent = CREDIT;
     if (url) {
       el.href = url;
       el.target = '_blank';            // 새 탭 → 게임 결과창은 그대로 남음
@@ -1381,6 +1482,10 @@ const SFX = {
   // if 모드 움직이는 계단: 밟을 때 "덜그럭", 부러질 때 "덩~"
   rattle:	[{"wave":"noise","from":0,"to":0,"time":0.05,"vol":0.3,"cut":1100},{"wave":"noise","from":0,"to":0,"time":0.05,"vol":0.36,"cut":800,"delay":0.06},{"wave":"noise","from":0,"to":0,"time":0.04,"vol":0.32,"cut":950,"delay":0.11},{"wave":"triangle","from":190,"to":150,"time":0.09,"vol":0.1}],
   snap:		[{"wave":"noise","from":0,"to":0,"time":0.12,"vol":0.26,"cut":2200},{"wave":"triangle","from":14,"to":96,"time":0.8,"vol":0.32},{"wave":"sine","from":208,"to":198,"time":0.55,"vol":0.12}],
+  // if 모드 꼭대기 축하: 폭죽 올라가는 "슈우-", 터지는 "펑", 종이가루 "팡"
+  launch:  [{ wave: 'square', from: 300, to: 1400, time: 0.35, vol: 0.04 }],
+  boom:    [{ wave: 'noise', from: 0, to: 0, time: 0.6, vol: 0.28, cut: 2500 }, { wave: 'triangle', from: 110, to: 40, time: 0.4, vol: 0.25 }],
+  pop:     [{ wave: 'noise', from: 0, to: 0, time: 0.08, vol: 0.2, cut: 4000 }, { wave: 'square', from: 900, to: 1300, time: 0.06, vol: 0.05 }],
 };
 
 const sound = {
@@ -2208,8 +2313,14 @@ function reachSummit(plat) {
   state.summit = true;
   state.summitTimeMs = Math.round(state.elapsed);
   state.door = { x: plat.doorX, y: plat.y };
-  showToast('꼭대기 도착! 문으로 가자', CONFIG.TOAST_MS);
-  sound.play('summit');
+  if (CONFIG.IF_MODE) {
+    showToast('아니 이걸 한다고?', 4000);
+    sound.play('summit');
+    startCelebration();
+  } else {
+    showToast('꼭대기 도착! 문으로 가자', CONFIG.TOAST_MS);
+    sound.play('summit');
+  }
 }
 
 function checkDoor() {
