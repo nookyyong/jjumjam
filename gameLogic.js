@@ -15,6 +15,17 @@ const CHARACTERS = [
   { id: 'c3', key: 'char3', name: '박무현', color: '#b08af0' },
   { id: 'c4', key: 'char4', name: '백애영', color: '#7ad4b0' },
   { id: 'c5', key: 'char5', name: '유금이', color: '#7ac4f0' },
+  // STAGE 2 (if 모드) 전용. heavy: 둔탁하고 묵직한 효과음
+  { id: 'c6', key: 'char6', name: '정상현', color: '#c9a27a', heavy: true },
+];
+
+/* ─── 스테이지 ─── */
+// 스테이지마다 캐릭터와 난이도 버튼이 다름. 탭에는 name, 잠겨 있는 동안엔 lockedName 표시
+// → 나중에 중간에 스테이지를 끼워 넣을 때는 목록에 추가하고 unlockBy만 맞추면 됨
+//   unlockBy: { stage, diff } 그 스테이지의 그 난이도를 깨면 열림 (페이지 열려 있는 동안만 기억, 새로고침하면 다시 잠김)
+const STAGES = [
+  { id: 's1', name: '1회차', chars: ['c1', 'c2', 'c3', 'c4', 'c5'], diffs: [1, 3, 5], defaultDiff: 3, hint: '나머지는 뒤에서 따라와요' },
+  { id: 's2', name: 'if회차', lockedName: '???', chars: ['c6'], diffs: [6], defaultDiff: 6, hint: '본편엔 없어. 이유가 있겠지.', unlockBy: { stage: 's1', diff: 5 } },
 ];
 
 // walk: 꼭대기에서 걸을 때 stand와 번갈아 표시 (다리만 벌린 프레임). 없으면 stand로 대신함
@@ -24,7 +35,7 @@ const spritePath = (ch, pose) => `images/${ch.key}_${pose}.png`;
 /* ─── 제목 / 표기 ─── */
 const GAME_TITLE = '제목지어주세요ㅜㅜ';
 const GAME_SUBTITLE = '어두운 바다의 등불이 되어 팬게임';
-const CREDIT = '';  // 제작자 표기 (예: 'jnj'). 비워두면 표시 안 함
+const CREDIT = '보리';  // 제작자 표기 (예: 'jnj'). 비워두면 표시 안 함
 
 /* ─── 게임 설정 ─── */
 const CONFIG = {
@@ -60,7 +71,8 @@ const CONFIG = {
   REACH_MARGIN: 0.9,     // 풀이동 거리의 몇 %까지 쓸지 (1에 가까울수록 어려움)
   REACH_BONUS: 30,
   SAFE_REACH_Y: 165,     // 꼭대기 바닥까지 마지막 계단에서 닿을 수 있는 최대 높이 (점프 최고 높이 약 187)
-  NO_CRUMBLE_START: 400, // 시작 바닥에서 이 높이까지는 무너지는 계단 없음       // 계단/캐릭터 너비 덕분에 추가로 닿는 거리(px)
+  NO_CRUMBLE_START: 400, // 시작 바닥에서 이 높이까지는 무너지는 계단 없음
+  MOVING_HITS: 3,        // if 모드: 움직이는 계단을 몇 번 밟으면 부러지는지
   SPRING_W: 24,          // 이미지 10px
 
   // 캐릭터
@@ -103,17 +115,21 @@ const DIFFICULTY_PRESETS = {
   4: { PX_PER_STAIR: 5.25, GAP_MIN: [40, 85], GAP_MAX: [100, 165], MOVING_CHANCE: [0.05, 0.32], CRUMBLE_CHANCE: [0.10, 0.35], SPRING_CHANCE: 0.05, MOVING_SPEED: [70, 170], PLAT_W: [67.2, 52.8] },
   5: { PX_PER_STAIR: 6, GAP_MIN: [45, 95], GAP_MAX: [110, 172], MOVING_CHANCE: [0.06, 0.35], CRUMBLE_CHANCE: [0.12, 0.40], SPRING_CHANCE: 0.04, MOVING_SPEED: [80, 190], PLAT_W: [62.4, 43.2] },
 };
-const DIFFICULTY_NAMES = { 1: '연습', 2: '쉬움', 3: '보통', 4: '어려움', 5: '지옥' };
+// 6: if 모드 (STAGE 2) — 지옥 기준, 일반 계단 없음 (스프링 / 움직이는 계단 / 무너지는 계단만)
+//    움직이는 계단은 세 번 밟으면 부러짐 (CONFIG.MOVING_HITS)
+DIFFICULTY_PRESETS[6] = { ...DIFFICULTY_PRESETS[5], IF_MODE: true };
+const DIFFICULTY_NAMES = { 1: '연습', 2: '쉬움', 3: '보통', 4: '어려움', 5: '지옥', 6: '그치만 if...' };
 const DIFFICULTY_HINTS = {
   1: '넓고 가까운 계단. 연습용',
   2: '무너지는 계단이 가끔 나와요',
   3: '위로 갈수록 계단이 좁아져요',
   4: '움직이는 계단이 빨라지고 스프링이 귀해요',
   5: '좁고, 멀고, 잘 무너져요',
+  6: '멀쩡한 계단이 하나도 없어요',
 };
 
 let GOAL_Y = 0;  // 꼭대기 높이 (난이도에 따라 달라짐)
-const DIFFICULTY_LEVELS = [1, 3, 5];  // 설정 화면에 보여줄 난이도 (연습 / 보통 / 지옥). 2, 4 프리셋은 보관만
+// 설정 화면에 보여줄 난이도는 스테이지별 diffs (STAGES). 2, 4 프리셋은 보관만
 
 /** 난이도 프리셋을 CONFIG에 적용 */
 function applyDifficulty(level) {
@@ -122,6 +138,7 @@ function applyDifficulty(level) {
   CONFIG.DIFFICULTY = DIFFICULTY_PRESETS[level] ? level : 3;
   CONFIG.PLAT_W_RANGE = preset.PLAT_W;
   CONFIG.PLAT_W = preset.PLAT_W[0];  // 기본(최대) 너비
+  CONFIG.IF_MODE = !!preset.IF_MODE;
   GOAL_Y = CONFIG.GOAL_STAIRS * CONFIG.PX_PER_STAIR;
 }
 applyDifficulty(CONFIG.DIFFICULTY);
@@ -130,7 +147,8 @@ applyDifficulty(CONFIG.DIFFICULTY);
 // 로컬(Live Server 등)에서만 동작. GitHub Pages 배포 주소에서는 무시됨
 //   ?start=4750   → 4750계단 높이에서 시작
 //   ?god=1        → 아래로 떨어져도 죽지 않고 튀어오름
-//   예) http://127.0.0.1:5500/index.html?start=4750&god=1
+//   ?unlock=1     → 잠긴 스테이지 전부 열기
+//   예) http://127.0.0.1:5500/index.html?start=4750&god=1&unlock=1
 const DEV = (() => {
   const local = ['localhost', '127.0.0.1', ''].includes(location.hostname);
   const q = new URLSearchParams(location.search);
@@ -139,16 +157,21 @@ const DEV = (() => {
     on: local,
     startStairs: local ? start : 0,
     god: local && q.get('god') === '1',
+    unlock: local && q.get('unlock') === '1',
   };
 })();
-if (DEV.on && (DEV.startStairs || DEV.god)) {
-  console.log(`[DEV] 시작 ${DEV.startStairs}계단, 무적 ${DEV.god ? 'ON' : 'OFF'}`);
+
+// 열린 스테이지 (저장 안 함: 새로고침하거나 브라우저를 다시 열면 STAGE 1만 남음)
+const unlockedStages = new Set(STAGES.filter(s => !s.unlockBy || DEV.unlock).map(s => s.id));
+const seenStages = new Set();  // 한 번이라도 눌러본 스테이지 (NEW! 딱지 지우기용, 저장 안 함)
+if (DEV.on && (DEV.startStairs || DEV.god || DEV.unlock)) {
+  console.log(`[DEV] 시작 ${DEV.startStairs}계단, 무적 ${DEV.god ? 'ON' : 'OFF'}, 스테이지 전부 열기 ${DEV.unlock ? 'ON' : 'OFF'}`);
 }
 
 const STORAGE_KEYS = {
   nickname: 'stairs_nickname',
   char: 'stairs_char',
-  tag: 'stairs_tag',
+  oldTag: 'stairs_tag',   // 안 씀 (지우기용)
   best: 'stairs_best_jump_d',  // + 난이도 번호. { stairs, timeMs }
   diff: 'stairs_diff',
   muteSfx: 'stairs_mute_sfx',
@@ -213,6 +236,7 @@ const state = {
   lastTs: null,
   keys: { left: false, right: false },
   selectedChar: CHARACTERS[0].id,
+  stage: STAGES[0].id,
   hudCache: {},
   toastsShown: {},
   summit: false,         // 꼭대기 계단 도착 (문까지 자유 이동)
@@ -245,7 +269,6 @@ const touchLeft      = document.getElementById('touchLeft');
 const touchRight     = document.getElementById('touchRight');
 const startScreen    = document.getElementById('startScreen');
 const nicknameInput  = document.getElementById('nicknameInput');
-const playerTagEl    = document.getElementById('playerTag');
 const charGrid       = document.getElementById('charGrid');
 const startError     = document.getElementById('startError');
 const startBtn       = document.getElementById('startBtn');
@@ -260,10 +283,12 @@ const photoCanvas    = document.getElementById('photoCanvas');
 const photoCaption   = document.getElementById('photoCaption');
 const photoStamp     = document.getElementById('photoStamp');
 const diffGrid       = document.getElementById('diffGrid');
+const stageTabs      = document.getElementById('stageTabs');
+const stageHint      = document.getElementById('stageHint');
 const saveBtn        = document.getElementById('saveBtn');
 const pauseBtn       = document.getElementById('pauseBtn');
 const pauseScreen    = document.getElementById('pauseScreen');
-const resumeBtn      = document.getElementById('resumeBtn');
+const pauseRestartBtn = document.getElementById('pauseRestartBtn');
 const quitBtn        = document.getElementById('quitBtn');
 const soundToggles   = document.getElementById('soundToggles');
 const sfxBtn         = document.getElementById('sfxBtn');
@@ -291,6 +316,10 @@ const lerp = (range, t) => range[0] + (range[1] - range[0]) * t;
 
 function getCharacter(id) {
   return CHARACTERS.find(c => c.id === id) || CHARACTERS[0];
+}
+
+function getStage(id = state.stage) {
+  return STAGES.find(s => s.id === id) || STAGES[0];
 }
 
 function stairsOf(y) {
@@ -327,15 +356,8 @@ function formatResult(r) {
   return r.stairs >= CONFIG.GOAL_STAIRS ? formatRecord(r.timeMs) : `${r.stairs.toLocaleString()}계단`;
 }
 
-/** 브라우저별 랭킹 구분용 4자리 태그 (개인정보 없이 동명이인 구분) */
-function getPlayerTag() {
-  let tag = storage.get(STORAGE_KEYS.tag, '');
-  if (!/^\d{4}$/.test(tag)) {
-    tag = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-    storage.set(STORAGE_KEYS.tag, tag);
-  }
-  return tag;
-}
+/** 예전 버전이 저장해 둔 4자리 태그는 이제 안 쓰니 지움 */
+try { localStorage.removeItem(STORAGE_KEYS.oldTag); } catch (e) { /* 저장소 못 쓰면 무시 */ }
 
 function loadBest() {
   try {
@@ -435,7 +457,11 @@ function nextPlatformX(gap, platW, fromX) {
 function makePlatform(y, t, reachGap, fromX, crumble) {
   const movingP = lerp(CONFIG.MOVING_CHANCE, t);
   let type = crumble ? 'crumble' : 'normal';
-  if (!crumble && rng() < movingP) type = 'moving';
+  if (CONFIG.IF_MODE) {
+    if (!crumble) type = 'moving';  // if 모드: 일반 계단 없음 → 무너지는 계단이 아니면 움직이는 계단
+  } else if (!crumble && rng() < movingP) {
+    type = 'moving';
+  }
 
   // 높이 올라갈수록 좁아짐 (픽셀 단위로 맞춤)
   const w = Math.round(lerp(CONFIG.PLAT_W_RANGE, t) / CONFIG.PIX) * CONFIG.PIX;
@@ -449,6 +475,8 @@ function makePlatform(y, t, reachGap, fromX, crumble) {
     crumbling: false,
     fallV: 0,
     alpha: 1,
+    hits: 0,      // if 모드: 움직이는 계단 밟은 횟수
+    hitT: -1e9,
   };
 
   if (type === 'moving') {
@@ -456,7 +484,8 @@ function makePlatform(y, t, reachGap, fromX, crumble) {
   }
   // 꼭대기 바로 아래에는 스프링 없음 (꼭대기 위로 튀어나가 화면이 어긋나는 것 방지)
   const nearGoal = y > GOAL_Y - 700;
-  if (type !== 'crumble' && !nearGoal && rng() < CONFIG.SPRING_CHANCE) {
+  // if 모드는 무너지는 계단에도 스프링이 붙음 (계단 대부분이 무너지는 계단이라)
+  if ((type !== 'crumble' || CONFIG.IF_MODE) && !nearGoal && rng() < CONFIG.SPRING_CHANCE) {
     plat.spring = { ox: rand(4, w - CONFIG.SPRING_W - 4), usedT: -1e9 };
   }
   return plat;
@@ -492,7 +521,10 @@ function generatePlatforms() {
     }
 
     const nearStart = y - state.startY < CONFIG.NO_CRUMBLE_START;
-    const crumble = !nearStart && rng() < lerp(CONFIG.CRUMBLE_CHANCE, t);
+    // if 모드: 움직이는 계단 확률을 뺀 나머지가 전부 무너지는 계단 (시작 근처는 움직이는 계단만)
+    const crumble = CONFIG.IF_MODE
+      ? !nearStart && rng() >= lerp(CONFIG.MOVING_CHANCE, t)
+      : !nearStart && rng() < lerp(CONFIG.CRUMBLE_CHANCE, t);
     const plat = makePlatform(y, t, y - state.genTopY, state.genLastX, crumble);
     state.platforms.push(plat);
     state.genTopY = y;
@@ -532,7 +564,9 @@ function resetGame(fixedLayout = false) {
     grounded: false,     // 꼭대기 바닥에 서 있음 (점프 대신 걷기)
   };
   state.history = [];
-  state.followers = CHARACTERS
+  state.followers = getStage().chars
+    .filter(id => id !== state.selectedChar)
+    .map(getCharacter)
     .filter(c => c.id !== state.selectedChar)
     .map(ch => ({ ch }));
 
@@ -568,7 +602,7 @@ function land(plat) {
     p.grounded = true;
     spawnDust(p.x, plat.y, 16, 1);
     if (state.phase === 'playing' && !state.summit) {
-      sound.play('land');
+      sound.play(getCharacter(state.selectedChar).heavy ? 'landHeavy' : 'land');
       reachSummit(plat);
     }
     return;
@@ -581,12 +615,27 @@ function land(plat) {
     p.vy = CONFIG.JUMP_V;
   }
 
-  spawnDust(p.x, plat.y, p.vy === CONFIG.SPRING_V ? 26 : 16, p.vy === CONFIG.SPRING_V ? 1.4 : 1);
-  if (state.phase === 'playing') sound.play(p.vy === CONFIG.SPRING_V ? 'spring' : 'jump');
+  const heavy = getCharacter(state.selectedChar).heavy;
+  const sprung = p.vy === CONFIG.SPRING_V;
+  spawnDust(p.x, plat.y, sprung ? 26 : heavy ? 22 : 16, sprung ? 1.4 : heavy ? 1.2 : 1);
+  const playing = state.phase === 'playing';
+  if (playing) sound.play((sprung ? 'spring' : 'jump') + (heavy ? 'Heavy' : ''));
   if (plat.type === 'crumble') {
     plat.crumbling = true;
     spawnDebris(plat);
-    if (state.phase === 'playing') sound.play('crumble');
+    if (playing) sound.play('crumble');
+  }
+  // if 모드: 움직이는 계단은 밟을 때마다 금이 가고 정해진 횟수가 되면 부러짐
+  if (plat.type === 'moving' && CONFIG.IF_MODE) {
+    plat.hits++;
+    plat.hitT = state.now;
+    if (plat.hits >= CONFIG.MOVING_HITS) {
+      plat.crumbling = true;
+      spawnDebris(plat);
+      if (playing) sound.play('snap');
+    } else if (playing) {
+      sound.play('rattle');
+    }
   }
 }
 
@@ -767,7 +816,7 @@ function update(dt) {
   }
 
   // 따라오는 캐릭터용 이동 기록
-  state.history.push({ t: state.now, x: p.x, y: p.y, dir: p.dir, rising: p.vy > 0, walking: p.grounded && Math.abs(p.vx) > 30 });
+  state.history.push({ t: state.now, x: p.x, y: p.y, dir: p.dir, rising: !p.grounded, walking: p.grounded && Math.abs(p.vx) > 30 });
   const keepFrom = state.now - (state.followers.length + 1) * CONFIG.FOLLOW_DELAY_MS - 200;
   while (state.history.length > 2 && state.history[1].t < keepFrom) state.history.shift();
 
@@ -1024,6 +1073,25 @@ function drawStair(holder, x, y, w, fallback) {
   ctx.drawImage(holder.el, 30 - edge, 0, edge, 6, x + (srcW - edge) * PIX, y, edge * PIX, h);
 }
 
+/** 밟은 횟수만큼 금 (도트 단위). 1번: 가운데 금 하나 / 2번: 양쪽으로 더 */
+function drawCracks(x, ly, w, hits) {
+  const P = CONFIG.PIX;
+  x = snap(x);
+  ly = snap(ly);
+  ctx.fillStyle = '#3a2412';
+  // [시작 x(도트), 모양: 위에서부터 한 칸씩 좌우로 꺾이는 금]
+  const cracks = [[0.5, [0, 1, 0, -1, 0]], [0.22, [0, -1, -1, 0]], [0.78, [0, 1, 0, 1]]];
+  const n = Math.min(cracks.length, hits === 1 ? 1 : 3);
+  for (let i = 0; i < n; i++) {
+    const [fx, shape] = cracks[i];
+    let cx = Math.round((w * fx) / P);
+    shape.forEach((dx, row) => {
+      cx += dx;
+      ctx.fillRect(x + cx * P, ly + row * P, P, P);
+    });
+  }
+}
+
 function drawPlatforms() {
   const PIX = CONFIG.PIX;
   for (const plat of state.platforms) {
@@ -1036,8 +1104,11 @@ function drawPlatforms() {
       drawTileRow(tile, plat.x, ly, plat.w, 16 * PIX, CONFIG.PLAT_H, STAIR_FALLBACK[plat.type]);
     } else {
       // 무너지는 중엔 살짝 흔들림
-      const shake = plat.crumbling ? Math.sin(state.now / 20) * 1.5 : 0;
+      // if 모드 움직이는 계단: 밟은 직후 잠깐 덜컹
+      const jolt = state.now - plat.hitT < 160 ? Math.sin(state.now / 15) * 1.5 : 0;
+      const shake = plat.crumbling ? Math.sin(state.now / 20) * 1.5 : jolt;
       drawStair(IMG[STAIR_IMG[plat.type]], plat.x + shake, ly, plat.w, STAIR_FALLBACK[plat.type]);
+      if (plat.hits > 0) drawCracks(plat.x + shake, ly, plat.w, plat.hits);
     }
 
     // 스프링
@@ -1159,7 +1230,8 @@ function drawCharacters() {
   if (ex0) {
     if (!ex0.done) drawCharacter(main, ex0.x, ex0.y, ex0.dir, false, true);
   } else {
-    const rising = state.phase !== 'title' && p.vy > 0;
+    // 공중에 있는 동안은 올라가든 내려가든 점프 이미지
+    const rising = state.phase !== 'title' && !p.grounded;
     drawCharacter(main, p.x, p.y, p.dir, rising, p.grounded && Math.abs(p.vx) > 30);
   }
 
@@ -1271,6 +1343,13 @@ const SFX = {
   door:    [{ wave: 'sawtooth', from: 220, to: 160, time: 0.35, vol: 0.06, wobble: 12 }, { wave: 'triangle', from: 880, to: 1760, time: 0.25, vol: 0.1, delay: 0.25 }],
   fall:    [{ wave: 'square', from: 700, to: 70, time: 0.7, vol: 0.12, wobble: 25 }],
   click:   [{ wave: 'triangle', from: 880, to: 660, time: 0.04, vol: 0.15 }],
+  // 정상현 (heavy): 둔탁하고 묵직하게
+  jumpHeavy:	[{"wave":"triangle","from":120,"to":60,"time":0.16,"vol":0.4},{"wave":"square","from":70,"to":110,"time":0.12,"vol":0.05},{"wave":"noise","from":0,"to":0,"time":0.1,"vol":0.16,"cut":350}],
+  springHeavy:	[{"wave":"triangle","from":90,"to":50,"time":0.14,"vol":0.4},{"wave":"square","from":60,"to":360,"time":0.42,"vol":0.12,"wobble":18,"delay":0.04}],
+  landHeavy:	[{"wave":"triangle","from":130,"to":32,"time":0.3,"vol":0.95},{"wave":"noise","from":0,"to":0,"time":0.22,"vol":0.22,"cut":450}],
+  // if 모드 움직이는 계단: 밟을 때 "덜그럭", 부러질 때 "덩~"
+  rattle:	[{"wave":"noise","from":0,"to":0,"time":0.05,"vol":0.3,"cut":1100},{"wave":"noise","from":0,"to":0,"time":0.05,"vol":0.36,"cut":800,"delay":0.06},{"wave":"noise","from":0,"to":0,"time":0.04,"vol":0.32,"cut":950,"delay":0.11},{"wave":"triangle","from":190,"to":150,"time":0.09,"vol":0.1}],
+  snap:		[{"wave":"noise","from":0,"to":0,"time":0.12,"vol":0.26,"cut":2200},{"wave":"triangle","from":14,"to":96,"time":0.8,"vol":0.32},{"wave":"sine","from":208,"to":198,"time":0.55,"vol":0.12}],
 };
 
 const sound = {
@@ -1288,6 +1367,11 @@ const sound = {
     }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
+    // 아이폰: 웹 소리는 기본이 '알림음' 취급이라 무음 스위치를 켜면 안 들림 → '미디어' 취급으로 바꿈
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'playback';  // iOS 17+
+    } catch { /* 지원 안 하면 무시 */ }
+    this.playSilentMedia();  // 구버전 iOS용: 무음 오디오를 같이 틀면 미디어 모드로 바뀜
     this.ctx = new AC();
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.6;
@@ -1296,6 +1380,28 @@ const sound = {
     const data = this.noise.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     bgm.start(this.ctx, this.master);
+  },
+
+  /** 소리 없는 아주 짧은 WAV를 반복 재생 (iOS 무음 스위치 우회용, 다른 기기에선 영향 없음) */
+  playSilentMedia() {
+    if (!/iPad|iPhone|iPod/.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent))) return;
+    try {
+      const rate = 8000;
+      const n = rate / 10;  // 0.1초
+      const buf = new ArrayBuffer(44 + n);
+      const v = new DataView(buf);
+      const str = (o, t) => { for (let k = 0; k < t.length; k++) v.setUint8(o + k, t.charCodeAt(k)); };
+      str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVE');
+      str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+      str(36, 'data'); v.setUint32(40, n, true);
+      for (let k = 0; k < n; k++) v.setUint8(44 + k, 128);  // 8bit 무음
+      const audio = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/wav' })));
+      audio.loop = true;
+      audio.setAttribute('playsinline', '');
+      audio.play().catch(() => {});
+      this.silentMedia = audio;
+    } catch { /* 무시 */ }
   },
 
   play(name) {
@@ -1750,9 +1856,9 @@ function prepareShareImage(info) {
   const INK = '#141a22';
   const FONT = '"Galmuri11", "Galmuri9", monospace';
   const FONT_BIG = '"Galmuri14", "Galmuri11", monospace';
-  const rows = [...document.querySelectorAll('.record_list li')].map(li => [
-    li.querySelector('.record_key').textContent,
-    li.querySelector('.record_val').textContent,
+  const rows = [...document.querySelectorAll('.profile_stats li')].map(li => [
+    li.querySelector('span').textContent,
+    li.querySelector('b').textContent,
   ]);
 
   // ── 레이아웃 (CSS px 기준) ──
@@ -1765,7 +1871,6 @@ function prepareShareImage(info) {
   const PH = CONFIG.PHOTO_SIZE;
   const POL_W = PH + 16;
   const POL_H = 8 + PH + 32;
-  const ROW_H = 27;
   const LIST_W = SCREEN_W - PAD_X * 2 - 4;
 
   let y = PAD_TOP + 10;             // 테이프 높이만큼 여유
@@ -1773,11 +1878,10 @@ function prepareShareImage(info) {
   y += POL_H + 16;
   const bestY = y;
   if (info.isNewBest) y += 18 + 12;
-  const PROF_H = 80 + 16;
+  const STAT_H = 16;
+  const PROF_H = Math.max(80, 16 + 10 + rows.length * STAT_H) + 16;
   const profTop = y;
-  y += PROF_H + 10;
-  const listTop = y;
-  y += rows.length * ROW_H + (rows.length - 1) * 2;
+  y += PROF_H;
   const footY = y + 22;
   const SCREEN_H = footY + 16 + 16;
   const W = (TABLET_W + OUT * 2) * S;
@@ -1876,45 +1980,51 @@ function prepareShareImage(info) {
   g.fillStyle = '#fff';
   g.fillRect(lx, profTop, LIST_W, PROF_H);
   const picX = lx + 10;
-  const picY = profTop + 8;
+  const picY = profTop + Math.round((PROF_H - 80) / 2);
   g.fillStyle = INK;
   g.fillRect(picX - 2, picY - 2, 60, 84);
   g.fillStyle = '#ffd23f';
   g.fillRect(picX, picY, 56, 80);
   const pic = getCharacter(state.selectedChar).sprites.left_stand;
   if (pic && pic.ok) g.drawImage(pic.el, picX + 4, picY + 8, 48, 72);  // 16×24 의 3배
+  // 오른쪽: 이름 / 캐릭터 / 기록
+  const ix = picX + 70;
+  const iw = lx + LIST_W - 10 - ix;
   g.textAlign = 'left';
   g.textBaseline = 'middle';
-  g.fillStyle = INK;
-  g.font = `bold 14px ${FONT_BIG}`;
-  g.fillText(recName.textContent, picX + 70, picY + 30);
+  // 캐릭터 이름 + 닉네임 한 줄 (길면 닉네임을 … 로 줄임)
+  const headY = profTop + 16;
+  g.textBaseline = 'alphabetic';
+  const charText = recChar.textContent;
   g.fillStyle = '#6b7484';
   g.font = `11px ${FONT}`;
-  g.fillText(recChar.textContent, picX + 70, picY + 52);
-
-  // 기록 목록
-  const listH = rows.length * ROW_H + (rows.length - 1) * 2;
-  g.fillStyle = '#c9d3cf';
-  g.fillRect(lx - 2, listTop - 2, LIST_W + 4, listH + 4);
-  g.fillStyle = '#fff';
-  g.fillRect(lx, listTop, LIST_W, listH);
-  g.font = `11px ${FONT}`;
+  g.fillText(charText, ix, headY + 5);
+  const nameX = ix + Math.ceil(g.measureText(charText).width) + 6;
+  g.font = `bold 14px ${FONT_BIG}`;
+  let nameText = recName.textContent;
+  const nameMax = ix + iw - nameX;
+  if (g.measureText(nameText).width > nameMax) {
+    while (nameText.length > 1 && g.measureText(nameText + '…').width > nameMax) nameText = nameText.slice(0, -1);
+    nameText += '…';
+  }
+  g.fillStyle = INK;
+  g.fillText(nameText, nameX, headY + 5);
   g.textBaseline = 'middle';
-  rows.forEach(([k, v], i) => {
-    const ry = listTop + i * (ROW_H + 2);
-    if (i > 0) {
-      g.fillStyle = '#d5ddd9';
-      for (let dx = 0; dx < LIST_W; dx += 4) g.fillRect(lx + dx, ry - 2, 2, 2);
-    }
+  const statsTop = profTop + 28;
+  g.fillStyle = '#d5ddd9';
+  for (let dx = 0; dx < iw; dx += 4) g.fillRect(ix + dx, statsTop - 4, 2, 2);
+  rows.forEach(([k, v], n) => {
+    const ry = statsTop + 8 + n * STAT_H;
     g.textAlign = 'left';
     g.fillStyle = '#6b7484';
-    g.fillText(k, lx + 10, ry + ROW_H / 2);
+    g.font = `11px ${FONT}`;
+    g.fillText(k, ix, ry);
     g.textAlign = 'right';
     g.fillStyle = INK;
     g.font = `bold 11px ${FONT}`;
-    g.fillText(v, lx + LIST_W - 10, ry + ROW_H / 2);
-    g.font = `11px ${FONT}`;
+    g.fillText(v, ix + iw, ry);
   });
+  g.font = `11px ${FONT}`;
 
   // 게임 이름
   g.textAlign = 'center';
@@ -1933,6 +2043,9 @@ function prepareShareImage(info) {
 }
 
 /** 모바일: 공유 시트(카톡, 인스타 등) / PC: PNG 다운로드 */
+// 손가락으로 조작하는 기기(폰/태블릿)인지
+const IS_TOUCH_DEVICE = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+
 function saveImage() {
   if (!shareBlob) {
     showToast(location.protocol === 'file:'
@@ -1943,11 +2056,23 @@ function saveImage() {
   const d = new Date();
   const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
   const safeTitle = GAME_TITLE.replace(/[\\/:*?"<>|]/g, '').trim() || 'result';
-  // PC / 모바일 모두 PNG 파일로 바로 다운로드
+  const fileName = `${safeTitle}_${ymd}.png`;
+
+  // 폰: 공유 창을 열어 "이미지 저장" → 사진 앱에 저장 (아이폰은 다운로드하면 파일 앱으로만 가서)
+  //     문구 없이 이미지 파일만 넘김
+  if (IS_TOUCH_DEVICE && navigator.canShare) {
+    const file = new File([shareBlob], fileName, { type: 'image/png' });
+    if (navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file] }).catch(() => { /* 취소해도 아무 일 없음 */ });
+      return;
+    }
+  }
+
+  // PC: PNG 파일로 바로 다운로드
   const url = URL.createObjectURL(shareBlob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${safeTitle}_${ymd}.png`;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -2021,6 +2146,9 @@ function setPaused(on) {
   state.keys.left = false;
   state.keys.right = false;
   pauseScreen.classList.toggle('hidden', !on);
+  pauseBtn.classList.toggle('paused', on);
+  pauseBtn.querySelector('.sound_label').textContent = on ? '계속' : '정지';
+  pauseBtn.setAttribute('aria-label', on ? '계속하기' : '일시정지');
   if (state.phase === 'playing') touchControls.classList.toggle('hidden', on);
 }
 
@@ -2099,7 +2227,6 @@ function endGame(reason) {
   if (isNewBest) storage.set(STORAGE_KEYS.best + CONFIG.DIFFICULTY, JSON.stringify(result));
 
   const nickname = storage.get(STORAGE_KEYS.nickname, '') || '이름없음';
-  const tag = getPlayerTag();
   const now = new Date();
   const h12 = now.getHours() % 12 || 12;
   const ampm = now.getHours() < 12 ? 'AM' : 'PM';
@@ -2109,8 +2236,10 @@ function endGame(reason) {
   photoStamp.classList.toggle('fail', !cleared);
   photoStamp.textContent = `${floorOf(result.stairs)}층!`;
 
-  recName.textContent = `${nickname}#${tag}`;
+  recName.textContent = nickname;
   recChar.textContent = getCharacter(state.selectedChar).name;
+  profileImg.style.visibility = 'hidden';  // 이미지 없는 캐릭터는 빈칸 (깨진 그림 표시 방지)
+  profileImg.onload = () => { profileImg.style.visibility = ''; };
   profileImg.src = spritePath(getCharacter(state.selectedChar), 'left_stand');
   recMode.textContent = DIFFICULTY_NAMES[CONFIG.DIFFICULTY];
   recStairs.textContent = `${result.stairs.toLocaleString()} / ${CONFIG.GOAL_STAIRS.toLocaleString()}`;
@@ -2127,10 +2256,19 @@ function endGame(reason) {
   // [DB] 2차 작업: 여기서 랭킹 등록 (닉네임#태그, 캐릭터, stairs, timeMs)
   //      정렬: stairs DESC, time_ms ASC
 
+  // 스테이지 해금 (이 페이지가 열려 있는 동안만)
+  const newlyOpened = cleared
+    ? STAGES.filter(s => s.unlockBy && !unlockedStages.has(s.id)
+        && s.unlockBy.stage === state.stage && s.unlockBy.diff === CONFIG.DIFFICULTY)
+    : [];
+  newlyOpened.forEach(s => unlockedStages.add(s.id));
+  if (newlyOpened.length) buildStageTabs();
+
   // 문 통과 → 결과 표시 (엔딩 연출은 나중에 여기에)
   setTimeout(() => {
     gameoverScreen.classList.remove('hidden');
     soundToggles.classList.add('hidden');  // 결과 태블릿과 겹쳐서 숨김
+    newlyOpened.forEach(s => showToast(`${s.name} 해금!`, 3000));
   }, cleared ? 200 : 600);
 }
 
@@ -2147,9 +2285,61 @@ function goToTitle() {
 }
 
 /* ─── 설정 화면 ─── */
+function buildStageTabs() {
+  stageTabs.innerHTML = '';
+  STAGES.forEach(st => {
+    const locked = !unlockedStages.has(st.id);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'stage_tab';
+    btn.dataset.id = st.id;
+    btn.setAttribute('role', 'tab');
+    btn.classList.toggle('locked', locked);
+    btn.classList.toggle('selected', st.id === state.stage);
+    btn.setAttribute('aria-selected', String(st.id === state.stage));
+    btn.textContent = locked ? (st.lockedName || st.name) : st.name;
+    if (locked) {
+      const lock = document.createElement('span');
+      lock.className = 'stage_lock';
+      lock.setAttribute('aria-hidden', 'true');
+      btn.appendChild(lock);
+    } else if (st.unlockBy && !seenStages.has(st.id)) {
+      // 새로 열린 스테이지: 한 번 누를 때까지 NEW! 딱지
+      const badge = document.createElement('span');
+      badge.className = 'stage_new';
+      badge.textContent = 'NEW!';
+      btn.appendChild(badge);
+    }
+    btn.addEventListener('click', () => {
+      if (!unlockedStages.has(st.id)) return;  // 잠긴 탭은 눌러도 반응 없음 (해금 조건은 비밀)
+      selectStage(st.id);
+    });
+    stageTabs.appendChild(btn);
+  });
+}
+
+function selectStage(id, charId) {
+  const st = getStage(unlockedStages.has(id) ? id : STAGES[0].id);
+  seenStages.add(st.id);
+  stageTabs.querySelector(`.stage_tab[data-id="${st.id}"] .stage_new`)?.remove();
+  state.stage = st.id;
+  stageTabs.querySelectorAll('.stage_tab').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id === st.id);
+    el.setAttribute('aria-selected', String(el.dataset.id === st.id));
+  });
+  stageHint.textContent = st.hint;
+  buildCharGrid();
+  buildDiffGrid();
+  selectDifficulty(st.defaultDiff);
+  selectCharacter(st.chars.includes(charId) ? charId : st.chars[0]);
+}
+
 function buildCharGrid() {
   charGrid.innerHTML = '';
-  CHARACTERS.forEach(ch => {
+  // 카드 크기는 5명일 때와 같게, 인원이 적으면 가운데 정렬
+  const chars = getStage().chars;
+  charGrid.style.gridTemplateColumns = `repeat(${chars.length}, calc((100% - 56px) / 5))`;
+  chars.map(getCharacter).forEach(ch => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'char_card';
@@ -2187,7 +2377,9 @@ function selectCharacter(id) {
 
 function buildDiffGrid() {
   diffGrid.innerHTML = '';
-  DIFFICULTY_LEVELS.forEach(key => {
+  const levels = getStage().diffs;
+  diffGrid.style.gridTemplateColumns = `repeat(${levels.length}, 1fr)`;
+  levels.forEach(key => {
     const level = Number(key);
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -2230,7 +2422,7 @@ startBtn.addEventListener('click', handleStart);
 restartBtn.addEventListener('click', startGame);
 titleBtn.addEventListener('click', goToTitle);
 pauseBtn.addEventListener('click', () => { togglePause(); pauseBtn.blur(); });
-resumeBtn.addEventListener('click', () => setPaused(false));
+pauseRestartBtn.addEventListener('click', startGame);
 quitBtn.addEventListener('click', goToTitle);
 // 다른 탭으로 가거나 앱을 내리면 자동 일시정지
 document.addEventListener('visibilitychange', () => {
@@ -2238,11 +2430,11 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // 소리: 첫 클릭/터치/키 입력 때 준비. 버튼 누를 때 "톡"
-['pointerdown', 'keydown'].forEach(type => {
+['pointerdown', 'touchend', 'click', 'keydown'].forEach(type => {
   document.addEventListener(type, () => sound.unlock(), { capture: true });
 });
 document.addEventListener('click', e => {
-  if (e.target.closest('button') && !e.target.closest('.sound_btn')) sound.play('click');
+  if (e.target.closest('button') && !e.target.closest('.sound_btn, .touch_btn')) sound.play('click');
 });
 sfxBtn.addEventListener('click', () => {
   sound.unlock();
@@ -2310,9 +2502,7 @@ window.addEventListener('resize', resizeCanvas);
 /* ─── 초기화 ─── */
 resizeCanvas();
 nicknameInput.value = storage.get(STORAGE_KEYS.nickname, '');
-playerTagEl.textContent = `#${getPlayerTag()}`;
-buildCharGrid();
-buildDiffGrid();
-selectDifficulty(3);  // 처음 들어오면 항상 '보통' 선택
-selectCharacter(storage.get(STORAGE_KEYS.char, CHARACTERS[0].id));
+buildStageTabs();
+// 처음 들어오면 항상 STAGE 1 / '보통' 선택 (STAGE 2는 새로고침하면 잠기니까)
+selectStage(STAGES[0].id, storage.get(STORAGE_KEYS.char, CHARACTERS[0].id));
 requestAnimationFrame(loop);

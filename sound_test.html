@@ -207,6 +207,31 @@
           desc: '설정 화면 버튼 누를 때 "톡"',
           layers: [{ wave: 'triangle', from: 880, to: 660, time: 0.04, vol: 0.15 }],
         },
+        jumpHeavy: {
+          name: '점프 (정상현)',
+          desc: '묵직하고 둔탁한 "쿵"',
+          layers: [{ wave: 'triangle', from: 120, to: 60, time: 0.16, vol: 0.4 }, { wave: 'square', from: 70, to: 110, time: 0.12, vol: 0.05 }, { wave: 'noise', from: 0, to: 0, time: 0.1, vol: 0.16, cut: 350 }],
+        },
+        springHeavy: {
+          name: '스프링 (정상현)',
+          desc: '쿵 + 낮은 "뚜요옹"',
+          layers: [{ wave: 'triangle', from: 90, to: 50, time: 0.14, vol: 0.4 }, { wave: 'square', from: 70, to: 360, time: 0.42, vol: 0.12, wobble: 18, delay: 0.04 }],
+        },
+        landHeavy: {
+          name: '착지 (정상현)',
+          desc: '꼭대기 바닥에 "쿠웅"',
+          layers: [{ wave: 'triangle', from: 130, to: 32, time: 0.3, vol: 0.45 }, { wave: 'noise', from: 0, to: 0, time: 0.22, vol: 0.22, cut: 450 }],
+        },
+        rattle: {
+          name: '움직이는 계단 밟음 (if 모드)',
+          desc: '1·2번째 밟을 때 "덜그럭"',
+          layers: [{ wave: 'noise', from: 0, to: 0, time: 0.05, vol: 0.2, cut: 1100 }, { wave: 'noise', from: 0, to: 0, time: 0.05, vol: 0.16, cut: 800, delay: 0.06 }, { wave: 'noise', from: 0, to: 0, time: 0.04, vol: 0.12, cut: 950, delay: 0.11 }, { wave: 'triangle', from: 190, to: 150, time: 0.09, vol: 0.1 }],
+        },
+        snap: {
+          name: '움직이는 계단 부러짐 (if 모드)',
+          desc: '3번째 밟을 때 "덩~"',
+          layers: [{ wave: 'noise', from: 0, to: 0, time: 0.12, vol: 0.26, cut: 2200 }, { wave: 'triangle', from: 104, to: 96, time: 0.8, vol: 0.32 }, { wave: 'sine', from: 208, to: 198, time: 0.55, vol: 0.12 }],
+        },
       };
 
       /* ─── 소리 엔진 ─── */

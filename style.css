@@ -441,14 +441,6 @@ input {
   background: #fffdf5;
 }
 
-.player_tag {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--cream);
-  background: var(--pink_dark);
-  padding: 4px 6px;
-}
-
 /* ─── 캐릭터 선택 ─── */
 .char_grid {
   display: grid;
@@ -1095,10 +1087,22 @@ input {
     4px 4px 0 var(--pink);
 }
 
-.pause_card .restart_btn,
-.pause_card .title_btn {
-  width: calc(100% - 8px);
-  margin: 0 auto;
+.pause_card {
+  max-width: 320px;
+}
+
+.pause_actions {
+  display: flex;
+  gap: 16px;
+  margin: 0 4px;
+}
+
+/* 일시정지 중엔 정지 버튼이 ▶ 계속 버튼으로 */
+.sound_btn.paused .pause_icon {
+  width: 12px;
+  height: 14px;
+  background: var(--ink);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
 
 .pause_card .mini_help {
@@ -1120,3 +1124,154 @@ input {
 
 /* 설정 화면에선 소리 버튼을 맨 위로 (설정 카드와 안 겹치게) */
 
+
+/* ─── 결과: 프로필 오른쪽에 기록 (결과창 세로 길이 줄이기) ─── */
+.profile_row {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.profile_info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* 닉네임#태그 + 캐릭터 이름 한 줄 */
+.profile_head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.profile_head .profile_name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile_head .profile_char {
+  flex-shrink: 0;
+}
+
+.profile_stats {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 2px dotted #d5ddd9;
+}
+
+.profile_stats li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+
+.profile_stats li span {
+  color: var(--sub);
+}
+
+.profile_stats li b {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* ─── 설정 화면: 스테이지 탭 ─── */
+.stage_tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 4px -3px;
+  position: relative;
+  z-index: 1;
+}
+
+.stage_tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 0 9px;
+  font-family: var(--font_px);
+  font-size: 11px;
+  border: none;
+  cursor: pointer;
+  background: #e6e0d2;
+  color: #8a8478;
+  box-shadow: 0 -3px 0 0 var(--ink), -3px 0 0 0 var(--ink), 3px 0 0 0 var(--ink);
+}
+
+.stage_tab.selected {
+  background: #fff;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.stage_tab.locked {
+  cursor: default;
+}
+
+/* 자물쇠 (도트) */
+.stage_lock {
+  width: 8px;
+  height: 10px;
+  background:
+    linear-gradient(#8a8478, #8a8478) 0 4px / 8px 6px no-repeat,
+    linear-gradient(#8a8478, #8a8478) 1px 0 / 2px 4px no-repeat,
+    linear-gradient(#8a8478, #8a8478) 5px 0 / 2px 4px no-repeat,
+    linear-gradient(#8a8478, #8a8478) 1px 0 / 6px 2px no-repeat;
+}
+
+.stage_panel {
+  margin: 0 4px;
+  padding: 14px 6px 14px;
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--ink);
+}
+
+.stage_panel .char_grid {
+  justify-content: center;
+  gap: 14px;
+  padding: 0;
+}
+
+.stage_panel .sel_name {
+  margin: 8px 0 14px;
+}
+
+.stage_panel .diff_grid {
+  margin-bottom: 0;
+  padding: 0 3px;
+}
+
+/* 새로 열린 스테이지 탭: NEW! 딱지 (한 번 누르면 사라짐) */
+.stage_tab {
+  position: relative;
+}
+
+.stage_new {
+  position: absolute;
+  top: -12px;
+  right: -8px;
+  padding: 3px 5px 4px;
+  font-family: var(--font_px);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--yellow);
+  pointer-events: none;
+  box-shadow:
+    0 -2px 0 var(--ink),
+    0 2px 0 var(--ink),
+    -2px 0 0 var(--ink),
+    2px 0 0 var(--ink),
+    2px 3px 0 var(--pink_dark);
+}

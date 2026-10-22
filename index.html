@@ -71,15 +71,17 @@
               spellcheck="false"
               aria-label="닉네임"
             />
-            <span class="player_tag" id="playerTag">#0000</span>
           </div>
 
-          <div class="char_grid" id="charGrid" aria-label="캐릭터 선택"></div>
-          <p class="sel_name">
-            <small>나머지는 뒤에서 따라와요</small>
-          </p>
+          <div class="stage_tabs" id="stageTabs" role="tablist" aria-label="스테이지 선택"></div>
+          <div class="stage_panel">
+            <div class="char_grid" id="charGrid" aria-label="캐릭터 선택"></div>
+            <p class="sel_name">
+              <small id="stageHint">나머지는 뒤에서 따라와요</small>
+            </p>
 
-          <div class="diff_grid" id="diffGrid" aria-label="난이도 선택"></div>
+            <div class="diff_grid" id="diffGrid" aria-label="난이도 선택"></div>
+          </div>
 
           <p class="start_error" id="startError"></p>
           <button type="button" class="start_btn px_btn" id="startBtn">오르기 시작</button>
@@ -91,9 +93,11 @@
       <div class="pause_screen hidden" id="pauseScreen">
         <div class="pause_card px_box">
           <p class="pause_title">일시정지</p>
-          <button type="button" class="restart_btn px_btn" id="resumeBtn">계속하기</button>
-          <button type="button" class="title_btn px_btn" id="quitBtn">처음으로</button>
-          <p class="mini_help">Esc / P 키로도 가능</p>
+          <div class="pause_actions">
+            <button type="button" class="restart_btn px_btn" id="pauseRestartBtn">다시 오르기</button>
+            <button type="button" class="title_btn px_btn" id="quitBtn">처음으로</button>
+          </div>
+          <p class="mini_help">계속하려면 ▶ 버튼 또는 Esc / P</p>
         </div>
       </div>
 
@@ -113,17 +117,18 @@
 
               <div class="profile_row">
                 <span class="profile_pic"><img id="profileImg" alt="" /></span>
-                <div class="profile_text">
-                  <b class="profile_name" id="recName"></b>
-                  <span class="profile_char" id="recChar"></span>
+                <div class="profile_info">
+                  <div class="profile_head">
+                    <span class="profile_char" id="recChar"></span>
+                    <b class="profile_name" id="recName"></b>
+                  </div>
+                  <ul class="profile_stats">
+                    <li><span>난이도</span><b id="recMode"></b></li>
+                    <li><span>오른 계단</span><b id="recStairs"></b></li>
+                    <li><span>소요 시간</span><b id="recTime"></b></li>
+                  </ul>
                 </div>
               </div>
-
-              <ul class="record_list">
-                <li><span class="record_key">난이도</span><span class="record_val" id="recMode"></span></li>
-                <li><span class="record_key">오른 계단</span><span class="record_val" id="recStairs"></span></li>
-                <li><span class="record_key">소요 시간</span><span class="record_val" id="recTime"></span></li>
-              </ul>
 
               <!-- [DB] 랭킹 등록 / 랭킹 탭 (2차 작업) -->
               <div class="tablet_actions">
