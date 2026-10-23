@@ -42,7 +42,7 @@ const CREDIT_URL = 'https://bsky.app/profile/hardycrops.bsky.social';
 /* ─── 게임 설정 ─── */
 const CONFIG = {
   // 규칙
-  GOAL_STAIRS: 4800,     // 원작 계단 수
+  GOAL_STAIRS: 4300,     // 원작 계단 수
   GOAL_FLOOR: 180,       // 원작 층수 (계단 수를 환산해서 표시)
   DIFFICULTY: 3,         // 기본 난이도 1~5 (설정 화면에서 선택 가능, 아래 DIFFICULTY_PRESETS)
 
@@ -88,8 +88,8 @@ const CONFIG = {
   TOAST_MS: 2500,
 
   // 꼭대기 문 (닿으면 결과 표시)
-  DOOR_W: 40.8,          // 이미지 17×27px
-  DOOR_H: 64.8,
+  DOOR_W: 62.4,          // 꼭대기 출구 = 신해량이 주먹으로 뚫은 가벽 구멍 (이미지 26×32px, 맨 아랫줄은 빈칸)
+  DOOR_H: 74.4,
   PHOTO_SIZE: 248,       // 결과 폴라로이드 사진 크기(px)
   PHOTO_VIEW_W: 400,     // 사진에 담길 최대 가로 범위(게임 좌표). 이보다 넓게는 안 찍힘 (400 = 게임 영역 전체 폭)
   WALK_FRAME_MS: 120,    // 걷기 프레임 전환 간격
@@ -111,12 +111,14 @@ const CONFIG = {
 //   PX_PER_STAIR  1계단 높이(클수록 꼭대기까지 멀어짐). 보통 4.5 ≈ 클리어 2분 30초 (이전 6 ≈ 3분 20초)
 //   GAP_MIN/MAX   계단 사이 세로 간격 (GAP_MAX는 187 미만 유지)
 //   PLAT_W        계단 너비 (이미지 30px = 72)
+// 계단 수를 4800 → 4300으로 바꾸면서 1계단 높이를 그만큼 키움 → 꼭대기 높이(GOAL_Y)·플레이 시간·난이도 그대로
+const STAIR_SCALE = 4800 / 4300;
 const DIFFICULTY_PRESETS = {
-  1: { PX_PER_STAIR: 3.75, GAP_MIN: [30, 55], GAP_MAX: [90, 125], MOVING_CHANCE: [0.03, 0.15], CRUMBLE_CHANCE: [0.05, 0.15], SPRING_CHANCE: 0.10, MOVING_SPEED: [50, 120], PLAT_W: [72, 72] },
-  2: { PX_PER_STAIR: 3.75, GAP_MIN: [30, 65], GAP_MAX: [90, 140], MOVING_CHANCE: [0.03, 0.20], CRUMBLE_CHANCE: [0.05, 0.20], SPRING_CHANCE: 0.10, MOVING_SPEED: [50, 120], PLAT_W: [72, 72] },
-  3: { PX_PER_STAIR: 4.5, GAP_MIN: [35, 75], GAP_MAX: [95, 155], MOVING_CHANCE: [0.05, 0.28], CRUMBLE_CHANCE: [0.08, 0.28], SPRING_CHANCE: 0.07, MOVING_SPEED: [60, 150], PLAT_W: [72, 57.6] },
-  4: { PX_PER_STAIR: 5.25, GAP_MIN: [40, 85], GAP_MAX: [100, 165], MOVING_CHANCE: [0.05, 0.32], CRUMBLE_CHANCE: [0.10, 0.35], SPRING_CHANCE: 0.05, MOVING_SPEED: [70, 170], PLAT_W: [67.2, 52.8] },
-  5: { PX_PER_STAIR: 6, GAP_MIN: [45, 95], GAP_MAX: [110, 172], MOVING_CHANCE: [0.06, 0.35], CRUMBLE_CHANCE: [0.12, 0.40], SPRING_CHANCE: 0.04, MOVING_SPEED: [80, 190], PLAT_W: [62.4, 43.2] },
+  1: { PX_PER_STAIR: 3.75 * STAIR_SCALE, GAP_MIN: [30, 55], GAP_MAX: [90, 125], MOVING_CHANCE: [0.03, 0.15], CRUMBLE_CHANCE: [0.05, 0.15], SPRING_CHANCE: 0.10, MOVING_SPEED: [50, 120], PLAT_W: [72, 72] },
+  2: { PX_PER_STAIR: 3.75 * STAIR_SCALE, GAP_MIN: [30, 65], GAP_MAX: [90, 140], MOVING_CHANCE: [0.03, 0.20], CRUMBLE_CHANCE: [0.05, 0.20], SPRING_CHANCE: 0.10, MOVING_SPEED: [50, 120], PLAT_W: [72, 72] },
+  3: { PX_PER_STAIR: 4.5 * STAIR_SCALE, GAP_MIN: [35, 75], GAP_MAX: [95, 155], MOVING_CHANCE: [0.05, 0.28], CRUMBLE_CHANCE: [0.08, 0.28], SPRING_CHANCE: 0.07, MOVING_SPEED: [60, 150], PLAT_W: [72, 57.6] },
+  4: { PX_PER_STAIR: 5.25 * STAIR_SCALE, GAP_MIN: [40, 85], GAP_MAX: [100, 165], MOVING_CHANCE: [0.05, 0.32], CRUMBLE_CHANCE: [0.10, 0.35], SPRING_CHANCE: 0.05, MOVING_SPEED: [70, 170], PLAT_W: [67.2, 52.8] },
+  5: { PX_PER_STAIR: 6 * STAIR_SCALE, GAP_MIN: [45, 95], GAP_MAX: [110, 172], MOVING_CHANCE: [0.06, 0.35], CRUMBLE_CHANCE: [0.12, 0.40], SPRING_CHANCE: 0.04, MOVING_SPEED: [80, 190], PLAT_W: [62.4, 43.2] },
 };
 // 6: if 모드 (STAGE 2) — 지옥과 같은 값, 일반 계단 대신 무너지는 계단 (움직이는 계단 / 무너지는 계단만)
 //    움직이는 계단은 세 번 밟으면 부러짐 (CONFIG.MOVING_HITS), 무너지는 계단에도 스프링이 붙음
@@ -149,10 +151,10 @@ applyDifficulty(CONFIG.DIFFICULTY);
 
 /* ─── 개발용 테스트 옵션 ─── */
 // 로컬(Live Server 등)에서만 동작. GitHub Pages 배포 주소에서는 무시됨
-//   ?start=4750   → 4750계단 높이에서 시작
+//   ?start=4250   → 4250계단 높이에서 시작
 //   ?god=1        → 아래로 떨어져도 죽지 않고 튀어오름
 //   ?unlock=1     → 잠긴 스테이지 전부 열기
-//   예) http://127.0.0.1:5500/index.html?start=4750&god=1&unlock=1
+//   예) http://127.0.0.1:5500/index.html?start=4250&god=1&unlock=1
 const DEV = (() => {
   const local = ['localhost', '127.0.0.1', ''].includes(location.hostname);
   const q = new URLSearchParams(location.search);
@@ -218,6 +220,7 @@ const IMG = {};
   'wall', 'wall_crack', 'wall_rebar', 'prop_stain', 'prop_crack',
   'stair_normal', 'stair_moving', 'stair_crumble', 'floor_tile', 'goal_tile',
   'spring', 'spring_on', 'door_frame', 'door_leaf', 'exit_sign', 'hydrant_door', 'hydrant_leaf',
+  'hole_back', 'hole_rubble', 'hole_cracked',
 ].forEach(name => { IMG[name] = loadImage(`images/${name}.png`); });
 
 CHARACTERS.forEach(ch => {
@@ -336,7 +339,7 @@ function stairsOf(y) {
   return Math.min(CONFIG.GOAL_STAIRS, Math.max(0, Math.floor(y / CONFIG.PX_PER_STAIR)));
 }
 
-/** 계단 수 → 원작 층수 환산 (0계단 = 1층, 4800계단 = 180층) */
+/** 계단 수 → 원작 층수 환산 (0계단 = 1층, 4300계단 = 180층) */
 function floorOf(stairs) {
   return Math.max(1, Math.ceil(stairs * CONFIG.GOAL_FLOOR / CONFIG.GOAL_STAIRS));
 }
@@ -605,6 +608,8 @@ function resetGame(fixedLayout = false) {
   state.exitT = 0;
   state.cleared = false;
   state.celebrate = false;
+  state.wallBrokenT = -1;  // 가벽이 뚫린 시각 (-1 = 아직 금만 간 상태)
+  state.shakeT = -1e9;
   state.rockets = [];
   generatePlatforms();
   updateHUD();
@@ -776,6 +781,26 @@ function spawnConfetti(x, y) {
   }
 }
 
+/** 가벽 구멍 먼지: 꼭대기가 화면에 보이는 동안 구멍 아래에서 계속 자욱하게 피어오름 */
+function spawnHoleDust() {
+  if (state.wallBrokenT < 0 || state.now < (state.holeDustT || 0) || state.particles.length > 500) return;
+  const goal = state.platforms.find(pl => pl.type === 'goal');
+  if (!goal) return;
+  const ly = toLY(goal.y);
+  if (ly < -40 || ly > viewLH + 120) return;
+  state.holeDustT = state.now + 120;
+  const colors = ['#e6e0d4', '#d2ccbf', '#bdb6a9'];
+  for (let i = 0; i < 2; i++) {
+    state.particles.push({
+      x: goal.doorX + Math.random() * (CONFIG.DOOR_W + 16) - 8,
+      y: goal.y + Math.random() * 18,
+      vx: (Math.random() - 0.5) * 36, vy: 8 + Math.random() * 26,
+      g: 3, drag: 0.6, life: 0, max: 1.4 + Math.random(), size: i ? 7.2 : 9.6,
+      color: colors[Math.floor(Math.random() * colors.length)], a: 0.5,
+    });
+  }
+}
+
 function updateParticles(dt) {
   for (const pt of state.particles) {
     pt.life += dt;
@@ -818,10 +843,9 @@ function update(dt) {
     }
     const doneT = state.exitT + state.followers.length * CONFIG.FOLLOW_DELAY_MS + CONFIG.EXIT_SLIDE_MS + 300;
     if (state.phase === 'playing' && state.now >= doneT) endGame('clear');
-    if (state.celebrate) {  // 문 들어가는 중 / 결과 화면 뒤에서도 계속 터짐
-      updateCelebration(dt);
-      updateParticles(dt);
-    }
+    if (state.celebrate) updateCelebration(dt);  // 구멍 들어가는 중 / 결과 화면 뒤에서도 계속 터짐
+    spawnHoleDust();
+    updateParticles(dt);  // 먼지도 계속 피어오름
     updateHUD();
     return;
   }
@@ -922,6 +946,7 @@ function update(dt) {
   while (state.history.length > 2 && state.history[1].t < keepFrom) state.history.shift();
 
   updateCelebration(dt);
+  spawnHoleDust();
   updateParticles(dt);
 
   // 지나간 계단 정리 + 새 계단 생성
@@ -1056,7 +1081,7 @@ function drawHydrant() {
 function drawParticles() {
   for (const pt of state.particles) {
     const k = pt.life / pt.max;
-    ctx.globalAlpha = pt.drag ? Math.min(1, 1.6 * (1 - k)) : 1 - k;
+    ctx.globalAlpha = (pt.a ?? 1) * (pt.drag ? Math.min(1, 1.6 * (1 - k)) : 1 - k);  // a: 최대 진하기 (구멍 먼지는 옅게)
     ctx.fillStyle = pt.color;
     const size = pt.drag ? pt.size * (1 - k * 0.5) : pt.size;
     ctx.fillRect(Math.round(pt.x - size / 2), Math.round(toLY(pt.y) - size / 2), size, size);
@@ -1083,8 +1108,8 @@ function drawAbyss() {
 /** 문 기하 정보: 문틀 안쪽(빛) 범위, 문짝이 붙는 쪽(벽 쪽) */
 function doorGeom(doorX) {
   const PIX = CONFIG.PIX;
-  const innerL = doorX + 2 * PIX;
-  const innerR = doorX + CONFIG.DOOR_W - 2 * PIX;
+  const innerL = doorX + 5 * PIX;   // 구멍 안쪽(빛) 범위
+  const innerR = doorX + CONFIG.DOOR_W - 5 * PIX;
   const hingeRight = doorX + CONFIG.DOOR_W / 2 > CONFIG.GAME_W / 2;  // 오른쪽 문이면 문짝은 오른쪽(벽 쪽)
   return { innerL, innerR, hingeRight };
 }
@@ -1095,55 +1120,50 @@ function doorOpenAmount() {
   return CONFIG.DOOR_OPEN + (CONFIG.DOOR_OPEN_EXIT - CONFIG.DOOR_OPEN) * k;
 }
 
-/** 꼭대기 문 (뒤쪽): 은은한 빛 + 문틀 너머 빛 + EXIT 표지판 */
+/** 꼭대기 출구 (뒤쪽): 가벽 구멍에서 새어 나오는 빛 + 구멍 + 바닥 잔해
+ *  원작: 180층에서 문이 아니라 신해량이 주먹으로 가벽을 뚫고 그 구멍으로 나감 */
 function drawDoorBack(x, groundLY) {
+  const PIX = CONFIG.PIX;
   const w = CONFIG.DOOR_W;
-  const h = CONFIG.DOOR_H;
-  const top = groundLY - h;
-  const { innerL, innerR, hingeRight } = doorGeom(x);
+  const top = groundLY - 31 * PIX;   // 이미지 맨 아랫줄(빈칸)이 바닥에 걸치게
+  const cx = x + w / 2;
 
-  // 문 틈으로 새어 나오는 따뜻한 빛 (천천히 숨쉬듯)
   const breathe = 0.75 + 0.25 * Math.sin(state.now / 900);
-  const open = 1 - doorOpenAmount();
-  const gapCX = hingeRight ? innerL + (innerR - innerL) * open / 2 : innerR - (innerR - innerL) * open / 2;
-  const glow = ctx.createRadialGradient(gapCX, top + h * 0.55, 4, gapCX, top + h * 0.55, 110);
-  glow.addColorStop(0, `rgba(255, 228, 160, ${(0.22 + open * 0.25) * breathe})`);
+  const cy = top + CONFIG.DOOR_H * 0.6;
+
+  // 뚫리기 전: 금 간 가벽 + 틈새로 아주 조금 새는 빛
+  if (state.wallBrokenT < 0) {
+    const seam = ctx.createRadialGradient(cx, top + 17 * PIX, 2, cx, top + 17 * PIX, 50);
+    seam.addColorStop(0, `rgba(255, 228, 160, ${0.18 * breathe})`);
+    seam.addColorStop(1, 'rgba(255, 228, 160, 0)');
+    ctx.fillStyle = seam;
+    ctx.fillRect(cx - 50, top - 20, 100, CONFIG.DOOR_H + 40);
+    drawImg(IMG.hole_cracked, x, top, w, 32 * PIX, '#6e6a63');
+    return;
+  }
+
+  // 뚫린 뒤: 구멍 너머 따뜻한 빛 (뚫리는 순간 확 밝았다가 천천히 숨쉬듯)
+  const flash = Math.max(0, 1 - (state.now - state.wallBrokenT) / 500);
+  const glow = ctx.createRadialGradient(cx, cy, 6, cx, cy, 120);
+  glow.addColorStop(0, `rgba(255, 228, 160, ${Math.min(0.95, 0.42 * breathe + flash * 0.5)})`);
   glow.addColorStop(1, 'rgba(255, 228, 160, 0)');
   ctx.fillStyle = glow;
-  ctx.fillRect(gapCX - 110, top - 60, 220, h + 120);
+  ctx.fillRect(cx - 120, top - 60, 240, CONFIG.DOOR_H + 120);
 
-  // 바닥에 비친 빛
-  const spillDir = hingeRight ? -1 : 1;
-  const spill = ctx.createLinearGradient(gapCX, 0, gapCX + spillDir * 90, 0);
-  spill.addColorStop(0, `rgba(255, 236, 180, ${0.3 * breathe})`);
+  // 바닥에 비친 빛 (양쪽으로)
+  const spill = ctx.createLinearGradient(cx - 100, 0, cx + 100, 0);
+  spill.addColorStop(0, 'rgba(255, 236, 180, 0)');
+  spill.addColorStop(0.5, `rgba(255, 236, 180, ${0.32 * breathe})`);
   spill.addColorStop(1, 'rgba(255, 236, 180, 0)');
   ctx.fillStyle = spill;
-  ctx.fillRect(Math.min(gapCX, gapCX + spillDir * 90), groundLY - 3, 90, 5);
+  ctx.fillRect(cx - 100, groundLY - 3, 200, 5);
 
-  drawImg(IMG.door_frame, x, top, w, h, '#fff1c2');
-
-  // 초록 EXIT 표지판
-  const sw = 19 * CONFIG.PIX;
-  const sh = 9 * CONFIG.PIX;
-  const sx = x + w / 2 - sw / 2;
-  const sy = top - sh - 8;
-  const sg = ctx.createRadialGradient(sx + sw / 2, sy + sh / 2, 4, sx + sw / 2, sy + sh / 2, 60);
-  sg.addColorStop(0, 'rgba(43, 212, 125, 0.25)');
-  sg.addColorStop(1, 'rgba(43, 212, 125, 0)');
-  ctx.fillStyle = sg;
-  ctx.fillRect(sx - 60, sy - 60, sw + 120, sh + 120);
-  drawImg(IMG.exit_sign, sx, sy, sw, sh, '#2bd47d');
+  drawImg(IMG.hole_back, x, top, w, 32 * PIX, '#fff1c2');
+  drawImg(IMG.hole_rubble, x - 5 * PIX, groundLY - 4 * PIX, 36 * PIX, 6 * PIX);
 }
 
-/** 꼭대기 문 (앞쪽): 살짝 열린 문짝. 캐릭터보다 위에 그려서 지나가면 문 뒤로 사라짐 */
-function drawDoorFront(x, groundLY) {
-  const PIX = CONFIG.PIX;
-  const { innerL, innerR, hingeRight } = doorGeom(x);
-  const fullW = innerR - innerL;
-  const lw = Math.max(PIX, fullW * doorOpenAmount());
-  const lx = hingeRight ? innerR - lw : innerL;
-  drawImg(IMG.door_leaf, lx, groundLY - CONFIG.DOOR_H + PIX, lw, 25 * PIX, '#6e7378');
-}
+/** 꼭대기 출구 (앞쪽): 구멍은 앞을 가리는 게 없음 (캐릭터는 구멍 가운데에서 잘려서 사라짐) */
+function drawDoorFront() {}
 
 const STAIR_IMG = {
   normal: 'stair_normal',
@@ -1352,7 +1372,11 @@ function renderScene() {
   drawBackdrop();
 
   // 게임 영역 좌표계로 전환 + 영역 밖은 잘라냄
-  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * offX, 0);
+  // 벽 뚫릴 때 화면이 잠깐 흔들림
+  const sk = Math.max(0, 1 - (state.now - state.shakeT) / 350);
+  const shakeX = sk ? Math.sin(state.now / 14) * 4 * sk * scale : 0;
+  const shakeY = sk ? Math.cos(state.now / 11) * 3 * sk * scale : 0;
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (offX + shakeX), dpr * shakeY);
   ctx.imageSmoothingEnabled = false;  // 픽셀아트 선명하게
   ctx.save();
   ctx.beginPath();
@@ -1462,6 +1486,7 @@ const SFX = {
   jump:    [{ wave: 'square', from: 320, to: 640, time: 0.08, vol: 0.12 }],
   spring:  [{ wave: 'square', from: 180, to: 900, time: 0.32, vol: 0.14, wobble: 40 }],
   land:    [{ wave: 'triangle', from: 160, to: 50, time: 0.12, vol: 0.3 }, { wave: 'noise', from: 0, to: 0, time: 0.08, vol: 0.12, cut: 600 }],
+  smash:   [{ wave: 'noise', from: 0, to: 0, time: 0.7, vol: 0.32, cut: 1800 }, { wave: 'triangle', from: 120, to: 35, time: 0.5, vol: 0.5 }, { wave: 'noise', from: 0, to: 0, time: 0.25, vol: 0.2, cut: 3500, delay: 0.05 }],
   crumble: [{ wave: 'noise', from: 0, to: 0, time: 0.3, vol: 0.22, cut: 1400 }, { wave: 'square', from: 140, to: 60, time: 0.18, vol: 0.06 }],
   floor:   [{ wave: 'square', from: 660, to: 660, time: 0.1, vol: 0.12 }, { wave: 'square', from: 990, to: 990, time: 0.18, vol: 0.12, delay: 0.1 }],
   summit:  [{ wave: 'square', from: 523, to: 523, time: 0.1, vol: 0.12 }, { wave: 'square', from: 659, to: 659, time: 0.1, vol: 0.12, delay: 0.1 }, { wave: 'square', from: 784, to: 784, time: 0.1, vol: 0.12, delay: 0.2 }, { wave: 'square', from: 1046, to: 1046, time: 0.3, vol: 0.12, delay: 0.3 }],
@@ -2300,16 +2325,43 @@ function startGame() {
 }
 
 /* ─── 꼭대기 ─── */
+/** 가벽 뚫기: 쾅! + 먼지 크게 터짐 + 콘크리트 조각 + 화면 흔들림 → 구멍 */
+function breakWall(plat) {
+  state.wallBrokenT = state.now;
+  state.shakeT = state.now;
+  sound.play('smash');
+  const cx = plat.doorX + CONFIG.DOOR_W / 2;
+  const dust = ['#e6e0d4', '#d2ccbf', '#bdb6a9'];
+  for (let i = 0; i < 44; i++) {
+    state.particles.push({
+      x: cx + (Math.random() - 0.5) * CONFIG.DOOR_W, y: plat.y + Math.random() * CONFIG.DOOR_H,
+      vx: (Math.random() - 0.5) * 520, vy: -40 + Math.random() * 220,
+      g: -120, drag: 3, life: 0, max: 1 + Math.random() * 0.9, size: i % 3 ? 9.6 : 12,
+      color: dust[i % 3], a: 0.8,
+    });
+  }
+  const chunks = ['#77726b', '#5c5853', '#969086'];
+  for (let i = 0; i < 18; i++) {
+    state.particles.push({
+      x: cx + (Math.random() - 0.5) * CONFIG.DOOR_W * 0.6, y: plat.y + CONFIG.DOOR_H * (0.3 + Math.random() * 0.5),
+      vx: (Math.random() - 0.5) * 400, vy: 80 + Math.random() * 260,
+      g: -CONFIG.GRAVITY, life: 0, max: 0.8 + Math.random() * 0.6, size: i % 3 ? 4.8 : 7.2,
+      color: chunks[i % 3],
+    });
+  }
+}
+
 function reachSummit(plat) {
   state.summit = true;
   state.summitTimeMs = Math.round(state.elapsed);
   state.door = { x: plat.doorX, y: plat.y };
+  breakWall(plat);
   if (CONFIG.IF_MODE) {
     showToast('아니 이걸 한다고?', 4000);
     sound.play('summit');
     startCelebration();
   } else {
-    showToast('꼭대기 도착! 문으로 가자', CONFIG.TOAST_MS);
+    showToast('벽을 뚫고 나가자!', CONFIG.TOAST_MS);
     sound.play('summit');
   }
 }
@@ -2324,7 +2376,7 @@ function checkDoor() {
     // 메인캐릭터부터 문 밖으로 미끄러져 나감 → 따라오는 캐릭터도 같은 지점에 도착하는 순서대로 나감
     const { innerL, innerR } = doorGeom(d.x);
     const dir = p.x < (innerL + innerR) / 2 ? 1 : -1;   // 다가온 방향으로 계속 진행
-    const clipX = dir > 0 ? innerR : innerL;              // 반대편 문틀 안쪽 끝
+    const clipX = (innerL + innerR) / 2 + dir * CONFIG.PIX * 2;  // 구멍 가운데 → 빛 속으로 들어가며 사라짐
     state.exitPath = {
       x0: p.x,
       y0: p.y,
@@ -2333,7 +2385,7 @@ function checkDoor() {
       endX: clipX + dir * (CONFIG.CHAR_W / 2 + 2),
     };
     state.exiting = true;
-    sound.play('door');
+    sound.play('crumble');
     state.exitShotTaken = false;
     state.exitT = state.now;
     state.cleared = true;

@@ -1286,3 +1286,13 @@ input {
 .credit_link:active {
   color: var(--pink_dark);
 }
+
+/* 시작 화면 오른쪽 아래 구석 제작자 표기 (흐리게, 누를 수 없음) */
+.start_credit {
+  position: fixed;
+  right: 12px;
+  bottom: 10px;
+  font-size: 11px;
+  color: rgba(255, 244, 220, 0.4);
+  pointer-events: none;
+}
