@@ -25,7 +25,7 @@ const CHARACTERS = [
 //   unlockBy: { stage, diff } 그 스테이지의 그 난이도를 깨면 열림 (페이지 열려 있는 동안만 기억, 새로고침하면 다시 잠김)
 const STAGES = [
   { id: 's1', name: '1회차', chars: ['c1', 'c2', 'c3', 'c4', 'c5'], diffs: [1, 3, 5], defaultDiff: 3, hint: '나머지는 뒤에서 따라와요' },
-  { id: 's2', name: 'if회차', lockedName: '???', chars: ['c6'], diffs: [6], defaultDiff: 6, hint: '본편엔 없어. 이유가 있겠지.', unlockBy: { stage: 's1', diff: 5 } },
+  { id: 's2', name: 'if회차?', lockedName: '???', chars: ['c6'], diffs: [6], defaultDiff: 6, hint: '다른 걸 기대하셨다면 죄송합니다.', unlockBy: { stage: 's1', diff: 5 } },
 ];
 
 // walk: 꼭대기에서 걸을 때 stand와 번갈아 표시 (다리만 벌린 프레임). 없으면 stand로 대신함
@@ -34,8 +34,9 @@ const spritePath = (ch, pose) => `images/${ch.key}_${pose}.png`;
 
 /* ─── 제목 / 표기 ─── */
 const GAME_TITLE = '아등바등';
-const GAME_SUBTITLE = '<어두운 바다의 등불이 되어> 비공식 팬게임';  // 설정 화면 위 띠는 index.html에서 따로
+const GAME_SUBTITLE = '<어두운 바다의 등불이 되어> 팬게임';  // 설정 화면 위 띠는 index.html에서 따로
 const CREDIT = '@hardycrops';  // 제작자 표기. 비워두면 표시 안 함
+const CREDIT_PLATFORM = 'bsky';   // X 계정과 헷갈리지 않게 붙이는 표시. 비워두면 계정만
 const CREDIT_URL = 'https://bsky.app/profile/hardycrops.bsky.social';
 
 /* ─── 게임 설정 ─── */
@@ -121,7 +122,7 @@ const DIFFICULTY_PRESETS = {
 //    움직이는 계단은 세 번 밟으면 부러짐 (CONFIG.MOVING_HITS), 무너지는 계단에도 스프링이 붙음
 //    무너지는 계단 바로 다음 움직이는 계단만 ±IF_PATROL 안에서 오감
 DIFFICULTY_PRESETS[6] = { ...DIFFICULTY_PRESETS[5], IF_MODE: true };
-const DIFFICULTY_NAMES = { 1: '연습', 2: '쉬움', 3: '보통', 4: '어려움', 5: '지옥', 6: '그치만 if...' };
+const DIFFICULTY_NAMES = { 1: '연습', 2: '쉬움', 3: '보통', 4: '어려움', 5: '지옥', 6: '하중 초과' };
 const DIFFICULTY_HINTS = {
   1: '넓고 가까운 계단. 연습용',
   2: '무너지는 계단이 가끔 나와요',
@@ -1429,29 +1430,21 @@ function developPhoto() {
   pctx.drawImage(shotBuffer, 0, 0);
 }
 
-/** 결과 화면/저장 이미지 맨 아래 두 줄: [제목 (· by 제작자)], [부제] */
-function footerLines() {
-  return [[GAME_TITLE, CREDIT && `by ${CREDIT}`].filter(Boolean).join(' · '), GAME_SUBTITLE];
+/** 제작자 표기: @계정 (플랫폼) */
+function creditText() {
+  return CREDIT_PLATFORM ? `${CREDIT} (${CREDIT_PLATFORM})` : CREDIT;
 }
 
-/** 결과 화면 맨 아래: 제목 · by 제작자(누르면 CREDIT_URL) / 부제 */
+/** 결과 화면/저장 이미지 맨 아래 두 줄: [제목 · 제작자], [부제] */
+function footerLines() {
+  return [[GAME_TITLE, CREDIT && `${creditText()}`].filter(Boolean).join(' · '), GAME_SUBTITLE];
+}
+
+/** 결과 화면 맨 아래 (링크 없이 글자만) */
 function renderFooter() {
+  const [line1, line2] = footerLines();
   tabletFoot.textContent = '';
-  tabletFoot.append(GAME_SUBTITLE, document.createElement('br'));
-  tabletFoot.append(GAME_TITLE);
-  if (CREDIT) {
-    tabletFoot.append(' · by ');  // 'by'는 링크 밖 (점선 없이)
-    const url = safeCreditUrl();
-    const el = document.createElement(url ? 'a' : 'span');
-    el.textContent = CREDIT;
-    if (url) {
-      el.href = url;
-      el.target = '_blank';            // 새 탭 → 게임 결과창은 그대로 남음
-      el.rel = 'noopener noreferrer';  // 새 탭이 게임 페이지를 건드리지 못하게, 어디서 왔는지 안 넘김
-      el.className = 'credit_link';
-    }
-    tabletFoot.append(el);
-  }
+  tabletFoot.append(line1, document.createElement('br'), line2);
 }
 
 /** https://bsky.app 주소만 링크로 씀 (오타나 다른 주소면 링크 없이 글자만) */
