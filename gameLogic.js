@@ -2035,7 +2035,11 @@ function prepareShareImage(info) {
   const bestY = y;
   if (info.isNewBest) y += 18 + 12;
   const STAT_H = 16;
-  const PROF_H = Math.max(80, 16 + 10 + rows.length * STAT_H) + 16;
+  // 프로필 줄은 결과 화면에 실제로 그려진 위치/크기를 그대로 재서 똑같이 그림 (화면 UI와 어긋나지 않게)
+  const rowEl = document.querySelector('.profile_row');
+  const R = rowEl.getBoundingClientRect();
+  const measured = R.width > 0 && R.height > 0;
+  const PROF_H = measured ? Math.round(R.height) : Math.max(80, 16 + 10 + rows.length * STAT_H) + 16;
   const profTop = y;
   y += PROF_H;
   const footY = y + 22;
@@ -2135,51 +2139,87 @@ function prepareShareImage(info) {
   g.fillRect(lx - 2, profTop - 2, LIST_W + 4, PROF_H + 4);
   g.fillStyle = '#fff';
   g.fillRect(lx, profTop, LIST_W, PROF_H);
-  const picX = lx + 10;
-  const picY = profTop + Math.round((PROF_H - 80) / 2);
-  g.fillStyle = INK;
-  g.fillRect(picX - 2, picY - 2, 60, 84);
-  g.fillStyle = '#ffd23f';
-  g.fillRect(picX, picY, 56, 80);
   const pic = getCharacter(state.selectedChar).sprites.left_stand;
-  if (pic && pic.ok) g.drawImage(pic.el, picX + 4, picY + 8, 48, 72);  // 16×24 의 3배
-  // 오른쪽: 이름 / 캐릭터 / 기록
-  const ix = picX + 70;
-  const iw = lx + LIST_W - 10 - ix;
-  g.textAlign = 'left';
-  g.textBaseline = 'middle';
-  // 캐릭터 이름 + 닉네임 한 줄 (길면 닉네임을 … 로 줄임)
-  const headY = profTop + 16;
-  g.textBaseline = 'alphabetic';
-  const charText = recChar.textContent;
-  g.fillStyle = '#6b7484';
-  g.font = `11px ${FONT}`;
-  g.fillText(charText, ix, headY + 5);
-  const nameX = ix + Math.ceil(g.measureText(charText).width) + 6;
-  g.font = `bold 14px ${FONT_BIG}`;
-  let nameText = recName.textContent;
-  const nameMax = ix + iw - nameX;
-  if (g.measureText(nameText).width > nameMax) {
-    while (nameText.length > 1 && g.measureText(nameText + '…').width > nameMax) nameText = nameText.slice(0, -1);
-    nameText += '…';
-  }
-  g.fillStyle = INK;
-  g.fillText(nameText, nameX, headY + 5);
-  g.textBaseline = 'middle';
-  const statsTop = profTop + 28;
-  g.fillStyle = '#d5ddd9';
-  for (let dx = 0; dx < iw; dx += 4) g.fillRect(ix + dx, statsTop - 4, 2, 2);
-  rows.forEach(([k, v], n) => {
-    const ry = statsTop + 8 + n * STAT_H;
+
+  if (measured) {
+    // 결과 화면 요소 위치 → 이미지 좌표 (왼쪽 정렬은 왼쪽 기준, 오른쪽 정렬은 오른쪽 기준으로 옮김)
+    const at = el => {
+      const r = el.getBoundingClientRect();
+      return { x: lx + (r.left - R.left), y: profTop + (r.top - R.top), w: r.width, h: r.height, rx: lx + LIST_W - (R.right - r.right) };
+    };
+    const fontOf = el => {
+      const cs = getComputedStyle(el);
+      return `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    };
+    const textMid = (el, text, align = 'left') => {
+      const b = at(el);
+      g.font = fontOf(el);
+      g.fillStyle = getComputedStyle(el).color;
+      g.textAlign = align;
+      g.textBaseline = 'middle';
+      g.fillText(text, align === 'right' ? b.rx : b.x, b.y + b.h / 2);
+      return b;
+    };
+    // 노란 사진 칸 + 도트
+    const pb = at(document.querySelector('.profile_pic'));
+    g.fillStyle = INK;
+    g.fillRect(pb.x - 2, pb.y - 2, pb.w + 4, pb.h + 4);
+    g.fillStyle = '#ffd23f';
+    g.fillRect(pb.x, pb.y, pb.w, pb.h);
+    const ib = at(profileImg);
+    if (pic && pic.ok) g.drawImage(pic.el, ib.x, ib.y, 48, 72);
+    // 캐릭터 이름 + 닉네임 (화면에서 … 로 잘린 폭 그대로)
+    textMid(recChar, recChar.textContent);
+    const nb = at(recName);
+    g.font = fontOf(recName);
+    let nameText = recName.textContent;
+    if (g.measureText(nameText).width > nb.w + 1) {
+      while (nameText.length > 1 && g.measureText(nameText + '…').width > nb.w) nameText = nameText.slice(0, -1);
+      nameText += '…';
+    }
+    textMid(recName, nameText);
+    // 점선 + 기록
+    const sb = at(document.querySelector('.profile_stats'));
+    g.fillStyle = '#d5ddd9';
+    for (let dx = 0; dx < sb.rx - sb.x; dx += 4) g.fillRect(sb.x + dx, sb.y, 2, 2);
+    document.querySelectorAll('.profile_stats li').forEach(li => {
+      const k = li.querySelector('span');
+      const v = li.querySelector('b');
+      textMid(k, k.textContent);
+      textMid(v, v.textContent, 'right');
+    });
+  } else {
+    // 결과 화면을 못 재는 경우 (숨겨져 있을 때): 고정 값으로 그림
+    const picX = lx + 10;
+    const picY = profTop + Math.round((PROF_H - 80) / 2);
+    g.fillStyle = INK;
+    g.fillRect(picX - 2, picY - 2, 60, 84);
+    g.fillStyle = '#ffd23f';
+    g.fillRect(picX, picY, 56, 80);
+    if (pic && pic.ok) g.drawImage(pic.el, picX + 4, picY + 8, 48, 72);
+    const ix = picX + 68;
+    const iw = lx + LIST_W - 10 - ix;
     g.textAlign = 'left';
+    g.textBaseline = 'middle';
     g.fillStyle = '#6b7484';
     g.font = `11px ${FONT}`;
-    g.fillText(k, ix, ry);
-    g.textAlign = 'right';
+    g.fillText(recChar.textContent, ix, profTop + 20);
     g.fillStyle = INK;
-    g.font = `bold 11px ${FONT}`;
-    g.fillText(v, ix + iw, ry);
-  });
+    g.font = `bold 14px ${FONT_BIG}`;
+    g.fillText(recName.textContent, ix + Math.ceil(g.measureText(recChar.textContent).width) + 6, profTop + 20);
+    rows.forEach(([k, v], n) => {
+      const ry = profTop + 40 + n * STAT_H;
+      g.textAlign = 'left';
+      g.fillStyle = '#6b7484';
+      g.font = `11px ${FONT}`;
+      g.fillText(k, ix, ry);
+      g.textAlign = 'right';
+      g.fillStyle = INK;
+      g.font = `bold 11px ${FONT}`;
+      g.fillText(v, ix + iw, ry);
+    });
+  }
+  g.textBaseline = 'middle';
   g.font = `11px ${FONT}`;
 
   // 게임 이름
@@ -2433,12 +2473,13 @@ function endGame(reason) {
   recTime.textContent = formatRecord(result.timeMs);
   photoCaption.textContent = `${date} ${time}`;
   developPhoto();
-  prepareShareImage({
+  shareBlob = null;  // 저장 이미지는 결과 화면이 뜬 뒤에 만듦 (프로필 위치를 화면에서 재서 똑같이 그리려고)
+  const shareInfo = {
     floor: floorOf(result.stairs),
     cleared,
     isNewBest: false,  // 결과 화면에서 최고 기록 표시는 뺌 (기록 저장은 랭킹용으로 계속 함)
     caption: photoCaption.textContent,
-  });
+  };
 
   // [DB] 2차 작업: 여기서 랭킹 등록 (닉네임#태그, 캐릭터, stairs, timeMs)
   //      정렬: stairs DESC, time_ms ASC
@@ -2455,6 +2496,7 @@ function endGame(reason) {
   setTimeout(() => {
     gameoverScreen.classList.remove('hidden');
     soundToggles.classList.add('hidden');  // 결과 태블릿과 겹쳐서 숨김
+    prepareShareImage(shareInfo);
     newlyOpened.forEach(s => showToast(`${s.name} 해금!`, 3000));
   }, cleared ? 200 : 600);
 }
