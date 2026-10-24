@@ -124,9 +124,9 @@ const DIFFICULTY_PRESETS = {
 //    움직이는 계단은 세 번 밟으면 부러짐 (CONFIG.MOVING_HITS), 무너지는 계단에도 스프링이 붙음
 //    무너지는 계단 바로 다음 움직이는 계단만 ±IF_PATROL 안에서 오감
 DIFFICULTY_PRESETS[6] = { ...DIFFICULTY_PRESETS[5], IF_MODE: true };
-const DIFFICULTY_NAMES = { 1: '연습', 2: '쉬움', 3: '보통', 4: '어려움', 5: '지옥', 6: '하중 초과' };
+const DIFFICULTY_NAMES = { 1: '쉬움', 2: '쉬움(보관)', 3: '보통', 4: '어려움', 5: '지옥', 6: '하중 초과' };
 const DIFFICULTY_HINTS = {
-  1: '넓고 가까운 계단. 연습용',
+  1: '넓고 가까운 계단.',
   2: '무너지는 계단이 가끔 나와요',
   3: '위로 갈수록 계단이 좁아져요',
   4: '움직이는 계단이 빨라지고 스프링이 귀해요',

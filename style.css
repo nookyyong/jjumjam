@@ -1296,3 +1296,16 @@ input {
   color: rgba(255, 244, 220, 0.4);
   pointer-events: none;
 }
+
+/* 난이도 제목 / 설명 */
+.diff_label {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: var(--sub);
+  text-align: center;
+}
+
+.diff_label i {
+  font-style: normal;
+  color: var(--pink_dark);
+}
